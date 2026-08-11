@@ -111,6 +111,24 @@ colour bar.
 Still to come from the suite: library Information Architecture, and the
 Workspace component for modular work.
 
+## Elsewhere in the suite
+
+The wire codec has a TypeScript twin, `@enkerli/rnd` in the
+[music-suite](https://github.com/Enkerli/music-suite) monorepo, checked against
+the same vectors as the C++ here so the two cannot drift. It backs two more
+surfaces:
+
+- **`msuite rnd`** — headless. `seed`/`read`/`decode` build and read frames
+  anywhere; `scan <capture.mid>` pulls every SysEx frame out of a MIDI recording
+  and folds it into a status; `send`/`watch` drive an ALSA rawmidi device on
+  Linux.
+- **A Workspace module** — watches for seed changes over Web MIDI and publishes
+  them on the suite bus, so a knob turn on the hardware can drive anything else
+  on the control plane.
+
+If you change the protocol here, change `packages/rnd/vectors/frames.json`
+there, and vice versa.
+
 ## Recording the four audio channels
 
 Not a job for this plugin — the RND presents four USB audio inputs (pre-reverb,
