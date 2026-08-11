@@ -28,6 +28,11 @@ public:
     /// walking-bit pattern.
     static const std::vector<std::uint32_t>& testSeeds();
 
+    /// Base for the per-burst seed. Every burst ends on a value nobody has sent
+    /// before, which is what makes the device's echo *proof* that this burst
+    /// got out rather than a leftover from an earlier one.
+    static constexpr std::uint32_t burstSeedBase = 0x5E5D0000u;
+
     //==============================================================================
     void prepareToPlay (double, int) override {}
     void releaseResources() override {}
@@ -55,7 +60,15 @@ public:
     //==============================================================================
     /// Queues the test burst. Safe to call from the message thread; the frames
     /// go out on the next processBlock.
-    void requestSend() { sendRequested.store (true); }
+    void requestSend();
+
+    /// The unique seed the most recent burst ended on. Seeing this come back
+    /// means the plugin's output reached the device and the device answered --
+    /// OUT and IN both, in one observation.
+    std::uint32_t currentBurstSeed() const { return burstSeed.load(); }
+
+    /// How many times this burst's unique seed has come back.
+    int burstEchoes() const { return burstEchoCount.load(); }
 
     void resetCounters();
 
@@ -101,6 +114,7 @@ public:
         Kind                      kind { Kind::damaged };
         std::uint32_t             seed {};
         bool                      matchesATestSeed {};
+        bool                      matchesThisBurst {};
         std::string               foreignLabel;
     };
 
@@ -113,6 +127,8 @@ private:
     std::atomic<bool> sendRequested { false };
     std::atomic<int>  sentCount { 0 }, receivedCount { 0 }, blockCount { 0 };
     std::atomic<int>  testSeedCount { 0 }, damagedCount { 0 }, foreignCount { 0 };
+    std::atomic<int>  burstCounter { 0 }, burstEchoCount { 0 };
+    std::atomic<std::uint32_t> burstSeed { 0 };
 
     juce::CriticalSection          receivedLock;
     std::vector<ReceivedFrame>     received;

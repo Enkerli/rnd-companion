@@ -18,6 +18,17 @@ const std::vector<std::uint32_t>& ProbeProcessor::testSeeds()
     return seeds;
 }
 
+void ProbeProcessor::requestSend()
+{
+    // A fresh trailing seed per burst. Without it, every burst ended on the
+    // same value and "the device is playing 0x0FEDCBA9" could equally mean
+    // "your frames got through" or "it was already there from last time" --
+    // which is exactly the ambiguity that made the AUM OUT result unprovable.
+    burstSeed.store (burstSeedBase | static_cast<std::uint32_t> (burstCounter.fetch_add (1) + 1));
+    burstEchoCount.store (0);
+    sendRequested.store (true);
+}
+
 void ProbeProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -51,9 +62,13 @@ void ProbeProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::MidiBu
 
                 const auto& seeds = testSeeds();
                 frame.matchesATestSeed = std::find (seeds.begin(), seeds.end(), frame.seed) != seeds.end();
+                frame.matchesThisBurst = (frame.seed == burstSeed.load()) && frame.seed != 0;
 
-                if (frame.matchesATestSeed)
+                if (frame.matchesATestSeed || frame.matchesThisBurst)
                     testSeedCount.fetch_add (1);
+
+                if (frame.matchesThisBurst)
+                    burstEchoCount.fetch_add (1);
             }
             else if (std::get_if<rnd::DumpBeginMessage> (&*parsed) != nullptr)
                 frame.kind = Kind::dumpBegin;
@@ -97,7 +112,10 @@ void ProbeProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::MidiBu
 
     if (sendRequested.exchange (false))
     {
-        for (auto seed : testSeeds())
+        auto seedsToSend = testSeeds();
+        seedsToSend.push_back (burstSeed.load());   // the unique one goes last
+
+        for (auto seed : seedsToSend)
         {
             const auto frame = rnd::makeSeedMessage (seed);
             midi.addEvent (juce::MidiMessage::createSysExMessage (frame.data() + 1,
@@ -105,7 +123,7 @@ void ProbeProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::MidiBu
                            0);
         }
 
-        sentCount.fetch_add (static_cast<int> (testSeeds().size()));
+        sentCount.fetch_add (static_cast<int> (seedsToSend.size()));
     }
 }
 
@@ -138,6 +156,7 @@ void ProbeProcessor::resetCounters()
     receivedCount.store (0);
     blockCount.store (0);
     testSeedCount.store (0);
+    burstEchoCount.store (0);
     damagedCount.store (0);
     foreignCount.store (0);
 

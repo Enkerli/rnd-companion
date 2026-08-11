@@ -20,6 +20,14 @@ A host that clamps, reorders, or truncates data bytes cannot produce these by
 accident. The probe reports a received frame as *one of ours, intact* only when
 the bytes decode back to one of these values.
 
+**Plus one unique seed per burst.** Each press of Send appends a fifth frame,
+`0x5E5D000N`, that has never been sent before. This is what makes the OUT
+direction provable: the RND echoes whatever seed it just loaded, so seeing
+`0x5E5D000N` come back means *this* burst reached the device. Without it, every
+burst ended on the same value and "the device is playing `0x0FEDCBA9`" was
+equally consistent with "your frames got through" and "it was already there".
+The probe now reports **BOTH DIRECTIONS WORK** on that echo.
+
 ## Reading the verdict
 
 The probe's own window states it, and names the format and host it is running
@@ -106,11 +114,15 @@ fails silently.
 
 | Host | Format | OUT | IN | Notes |
 |---|---|---|---|---|
-| (none — direct CoreMIDI) | Standalone | pass | pass | Baseline above, 2026-08-10 |
-| AUM | AUv3 | | | |
-| Logic Pro | AU | ? | **likely pass** | Delivered two intact universal SysEx frames of its own (Master Fine Tuning, and a 400-byte MIDI Tuning bulk dump with a valid checksum). RND frames not yet fed in. |
+| (none — direct CoreMIDI) | Standalone | likely pass | **pass** | Baseline, 2026-08-10. 346 intact, 0 damaged. |
+| AUM (iPadOS) | AUv3 | likely pass | **pass** | 2026-08-10: 4416 frames, **736 of ours intact, 0 damaged**. Full dump cycle through an AUv3. Best result so far. |
+| Logic Pro | AU | ? | **likely pass** | Delivered two intact universal SysEx frames of its own (Master Fine Tuning, and a 400-byte MIDI Tuning bulk dump with valid checksum). RND frames not yet fed in. |
 | Bitwig Studio | CLAP | ? | not yet exercised | Probe sent 4, received 0 — but as a Note FX its input is the *track's* MIDI input, not the HW Instrument's return. Set the track input to RND Synth before concluding anything. |
 | Bitwig Studio | VST3 | | | |
+
+"Likely pass" on OUT means the device was seen playing a seed the burst sent,
+but that seed was not unique to the burst. Re-run those with the per-burst seed
+and they become plain passes or plain failures.
 
 ### Why "sent 4, received 0" is not a result
 

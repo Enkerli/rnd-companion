@@ -104,12 +104,16 @@ example, is a few hundred writes a second.
 
 Captured: `02 7D 00 02 11` → mode 2, 125 BPM, tonic D, scale 17 (prometheus).
 
-**The tonic byte is not stable.** Across consecutive dumps from one running
-patch — same seed, same tempo, same scale — byte 3 was observed cycling through
-0x0B, 0x06, 0x09 and 0x04 (B, F♯, A, E). Either it reports the *current* root
-of the running material rather than a patch setting, or it is not the tonic at
-all. Seed Lab treats it as a static tonic. Do not build anything that assumes
-it holds still until this is understood.
+**The tonic byte is not stable — confirmed over a long run.** Across dozens of
+consecutive dumps of one running patch (seed `0x0fedcba9`, tempo 118, scale 6
+all constant), byte 3 took nearly every value in 0x00–0x0B, in no repeating
+order: 02, 09, 00, 05, 03, 08, 06, 0B, 04, 07, 0A, 01 …
+
+So it is not a patch setting. It either reports the *current* root of the
+running material, or it is not the tonic at all. Seed Lab treats it as a static
+tonic and displays it as such. Nothing should be built on it holding still, and
+a library entry that records it as "the seed's tonic" is recording a sample of a
+moving value.
 
 **Tempo caveat.** The capture's note grid is built from a single ~0.385 s pulse,
 which does not divide evenly into 125 BPM — closer to a 4:5 relationship. The

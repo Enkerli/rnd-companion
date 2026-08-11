@@ -43,7 +43,9 @@ ProbeEditor::ProbeEditor (ProbeProcessor& p)
     sendButton.onClick = [this]
     {
         probe.requestSend();
-        appendLine ("Queued 4 frames for the next audio block.");
+        appendLine ("Queued 5 frames, ending on "
+                    + juce::String (rnd::formatSeed (probe.currentBurstSeed()))
+                    + " -- watch for that one coming back.");
     };
     addAndMakeVisible (sendButton);
 
@@ -132,7 +134,14 @@ void ProbeEditor::timerCallback()
     const int damaged = probe.damagedReceived();
     const int foreign = probe.foreignReceived();
 
-    outCounters.setText ("Sent " + juce::String (sent) + " test frames", juce::dontSendNotification);
+    const int echoes = probe.burstEchoes();
+    const auto burstSeed = probe.currentBurstSeed();
+
+    outCounters.setText ("Sent " + juce::String (sent) + " test frames"
+                         + (burstSeed != 0 ? "; this burst ends on "
+                                             + juce::String (rnd::formatSeed (burstSeed))
+                                           : juce::String()),
+                         juce::dontSendNotification);
     inCounters.setText ("Received " + juce::String (received) + " frames: "
                         + juce::String (ours) + " of ours, "
                         + juce::String (foreign) + " other SysEx, "
@@ -154,10 +163,20 @@ void ProbeEditor::timerCallback()
         verdict.setText ("This host DAMAGES RND SysEx: " + juce::String (damaged) + " of our frames arrived broken.",
                          juce::dontSendNotification);
     }
+    else if (echoes > 0)
+    {
+        // The strongest single observation available: a seed only this burst
+        // has ever sent came back from the device. Out and in, both proved.
+        verdict.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        verdict.setText ("BOTH DIRECTIONS WORK: the device echoed this burst's unique seed "
+                         + juce::String (rnd::formatSeed (burstSeed)) + ".",
+                         juce::dontSendNotification);
+    }
     else if (ours > 0)
     {
         verdict.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        verdict.setText ("SysEx IN works: " + juce::String (ours) + " test frames arrived intact.",
+        verdict.setText ("SysEx IN works: " + juce::String (ours)
+                         + " test frames arrived intact. Press Send again to prove OUT.",
                          juce::dontSendNotification);
     }
     else if (foreign > 0)
@@ -185,6 +204,7 @@ void ProbeEditor::timerCallback()
         // parse failures always show; the rest only on request.
         // Foreign frames are rare and are evidence, so they always show.
         const bool interesting = frame.matchesATestSeed
+                              || frame.matchesThisBurst
                               || frame.kind == ProbeProcessor::Kind::damaged
                               || frame.kind == ProbeProcessor::Kind::foreign;
 
@@ -204,7 +224,9 @@ void ProbeEditor::timerCallback()
         if (frame.kind == ProbeProcessor::Kind::seed)
         {
             line << " " << juce::String (rnd::formatSeed (frame.seed));
-            if (frame.matchesATestSeed)
+            if (frame.matchesThisBurst)
+                line << "  <== THIS BURST's unique seed: OUT confirmed";
+            else if (frame.matchesATestSeed)
                 line << "  <-- one of ours, intact";
         }
         else if (frame.kind == ProbeProcessor::Kind::foreign && ! frame.foreignLabel.empty())
