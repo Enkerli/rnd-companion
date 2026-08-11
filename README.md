@@ -82,6 +82,16 @@ the name; pick by hand if yours differs).
 The library lives at `~/Library/Application Support/RND Companion/seed-library.json`
 on macOS and exports to plain JSON.
 
+## Icon
+
+![RND Companion](Assets/icon.png)
+
+A seed with three broadcast arcs — the thing this companion captures, in the act
+of being sent, since the RND emits its seed unprompted the moment the knob
+turns. Same card, radius, border and ink as the rest of the suite; green
+(`es-pc-2`) was the one unclaimed hue on the suite wheel. Drawn in the
+paper-&-ink grammar by a Claude design pass, 2026-08-11.
+
 ## Look and feel
 
 The suite's "paper & ink" language, taken from `@enkerli/ui` tokens
@@ -130,7 +140,8 @@ metadata comes from what the hardware actually reported. See the last section of
 - [x] Capture, send, curate, live scale/tonic/volume/reverb
 - [x] Per-host SysEx measurement (no host damages it; routing is the issue)
 - [x] Plugin in every format, AUv3 included, with both transports
-- [ ] Suite look & feel: light/dark themes, library IA, Workspace component
+- [ ] Shared Frame + library IA + Workspace component (audit F2)
+- [ ] Promote `affirm`/`caution` to suite tokens (audit F3 — monorepo decision)
 - [ ] Controller channel routing
 - [ ] MIDI clock toggle, once the tempo field is calibrated
 - [ ] BIP39 three-word seed phrases, to match how Seed Lab writes them

@@ -1,5 +1,7 @@
 #include "CompanionView.h"
 
+#include "BuildStamp.h"
+
 #include <FileExport.h>
 #include <FileImport.h>
 
@@ -13,6 +15,67 @@ namespace
 
 }
 
+CompanionView::UndoToast::UndoToast()
+{
+    message.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (message);
+
+    undoButton.onClick = [this]
+    {
+        if (onUndo != nullptr)
+            onUndo();
+
+        dismiss();
+    };
+    addAndMakeVisible (undoButton);
+
+    setVisible (false);
+    setInterceptsMouseClicks (false, true);
+}
+
+void CompanionView::UndoToast::show (const juce::String& text, std::function<void()> undoAction)
+{
+    message.setText (text, juce::dontSendNotification);
+    onUndo = std::move (undoAction);
+    setVisible (true);
+    toFront (false);
+
+    // Long enough to notice and act on, short enough not to linger.
+    startTimer (7000);
+}
+
+void CompanionView::UndoToast::dismiss()
+{
+    stopTimer();
+    onUndo = nullptr;
+    setVisible (false);
+}
+
+void CompanionView::UndoToast::timerCallback()
+{
+    dismiss();
+}
+
+void CompanionView::UndoToast::paint (juce::Graphics& g)
+{
+    if (auto* lf = dynamic_cast<suite::SuiteLookAndFeel*> (&getLookAndFeel()))
+    {
+        const auto& t = lf->theme();
+        g.setColour (t.fg.withAlpha (0.95f));
+        g.fillRoundedRectangle (getLocalBounds().toFloat(), static_cast<float> (suite::metrics::radiusSm));
+        message.setColour (juce::Label::textColourId, t.bg);
+    }
+}
+
+void CompanionView::UndoToast::resized()
+{
+    auto area = getLocalBounds().reduced (10, 4);
+    undoButton.setBounds (area.removeFromRight (70));
+    area.removeFromRight (8);
+    message.setBounds (area);
+}
+
+//==============================================================================
 CompanionView::CompanionView (CompanionModel& m)
     : model (m)
 {
@@ -21,6 +84,7 @@ CompanionView::CompanionView (CompanionModel& m)
     viewport.setViewedComponent (&content, false);
     viewport.setScrollBarsShown (true, false);
     juce::Component::addAndMakeVisible (viewport);
+    juce::Component::addChildComponent (undoToast);   // hidden until something is removed
 
     // Light is the suite's default design target; dark is a first-class
     // variant. "Auto" follows the OS until the person chooses -- DESIGN.md.
@@ -72,12 +136,31 @@ CompanionView::CompanionView (CompanionModel& m)
 
     autoConnectButton.onClick = [this]
     {
+        // With two interfaces plugged in, silently picking one leaves the user
+        // guessing which.
+        juce::StringArray matches;
+        for (const auto& device : model.link().availableOutputs())
+            if (DeviceLink::looksLikeRnd (device.name))
+                matches.add (device.name);
+
         model.link().connectToRnd();
         refreshPortLists();
+
+        if (matches.size() > 1)
+            appendLog ("More than one port matches 'RND' (" + matches.joinIntoString (", ")
+                       + "). Using " + model.link().outputName() + " -- pick another above if wrong.");
     };
     content.addAndMakeVisible (autoConnectButton);
 
     content.addAndMakeVisible (connectionLabel);
+
+    // Which build is running -- the first thing to check when the UI and the
+    // engine disagree.
+    buildStamp.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
+    buildStamp.setJustificationType (juce::Justification::centredRight);
+    buildStamp.setText ("build " RND_BUILD_STAMP, juce::dontSendNotification);
+    buildStamp.setTooltip ("Build stamp. Quote this when reporting anything odd.");
+    content.addAndMakeVisible (buildStamp);
 
     transportLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
     content.addAndMakeVisible (transportLabel);
@@ -167,17 +250,31 @@ CompanionView::CompanionView (CompanionModel& m)
     volumeSlider.setRange (0.0, 127.0, 1.0);
     volumeSlider.setValue (100.0, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight() - 6);
-    volumeSlider.onValueChange = [this] { model.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
+    volumeSlider.onValueChange = [this]
+    {
+        markMixTouched();
+        model.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown());
+    };
     volumeSlider.onDragEnd     = [this] { appendLog ("Volume " + juce::String ((int) volumeSlider.getValue())); };
     content.addAndMakeVisible (volumeSlider);
 
     reverbSlider.setRange (0.0, 127.0, 1.0);
     reverbSlider.setValue (40.0, juce::dontSendNotification);
     reverbSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight() - 6);
-    reverbSlider.onValueChange = [this] { model.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
+    reverbSlider.onValueChange = [this]
+    {
+        markMixTouched();
+        model.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown());
+    };
     reverbSlider.onDragEnd     = [this] { appendLog ("Reverb " + juce::String ((int) reverbSlider.getValue())
                                                      + " (analog mix out only, USB stems stay dry)"); };
     content.addAndMakeVisible (reverbSlider);
+
+    mixCaveat.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
+    mixCaveat.setText ("Volume and reverb are send-only: the RND never reports them, so these show "
+                       "what will be sent, not where the hardware is.",
+                       juce::dontSendNotification);
+    content.addAndMakeVisible (mixCaveat);
 
     lockWarning.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
     lockWarning.setText ("Scale and tonic lock on the hardware and change what a seed produces. Power-cycle to clear.",
@@ -196,6 +293,8 @@ CompanionView::CompanionView (CompanionModel& m)
     showPass.setToggleState (false, juce::dontSendNotification);
 
     libraryList.setRowHeight (juce::jmax (44, suite::metrics::controlHeight() + 14));
+    libraryList.setWantsKeyboardFocus (true);
+    libraryList.setTitle ("Seed library");
     content.addAndMakeVisible (libraryList);
 
     keepButton.onClick = [this] { rateSelected (SeedEntry::Rating::keep); };
@@ -304,6 +403,10 @@ void CompanionView::resized()
 {
     viewport.setBounds (getLocalBounds());
 
+    auto toastArea = getLocalBounds().reduced (gap * 3, 0);
+    undoToast.setBounds (toastArea.removeFromBottom (rowHeight() + 12)
+                                  .withTrimmedBottom (gap * 2));
+
     const int width = viewport.getMaximumVisibleWidth();
     content.setSize (width, juce::jmax (naturalContentHeight (width),
                                         viewport.getMaximumVisibleHeight()));
@@ -346,6 +449,12 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     portsHeading.setBounds (area.removeFromTop (headerHeight()));
 
     auto portRow = area.removeFromTop (rowHeight());
+
+    // Claimed first: laid out last it gets whatever the combos leave, which is
+    // nothing.
+    buildStamp.setBounds (portRow.removeFromRight (juce::jmin (140, portRow.getWidth() / 5)));
+    portRow.removeFromRight (gap);
+
     const int comboWidth = juce::jmax (110, (portRow.getWidth() - 190 - gap * 3) / 2);
     inputCombo.setBounds (portRow.removeFromLeft (comboWidth));
     portRow.removeFromLeft (gap);
@@ -440,31 +549,41 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     reverbSlider.setBounds (reverbRow);
 
     if (left.getHeight() > 0)
+        mixCaveat.setBounds (left.removeFromTop (juce::jmin (rowHeight(), left.getHeight())));
+
+    if (left.getHeight() > 0)
         lockWarning.setBounds (left.removeFromTop (juce::jmin (rowHeight() * 2, left.getHeight())));
 
     // ── Right: library ─────────────────────────────────────────────────────
     libraryHeading.setBounds (right.removeFromTop (headerHeight()));
 
     auto filterRow = right.removeFromTop (rowHeight());
-    showUnrated.setBounds (filterRow.removeFromLeft (72));
-    showKeep.setBounds (filterRow.removeFromLeft (72));
-    showPass.setBounds (filterRow.removeFromLeft (72));
-    filterRow.removeFromLeft (gap);
-    exportButton.setBounds (filterRow.removeFromLeft (juce::jmax (0, juce::jmin (70, filterRow.getWidth()))));
-    filterRow.removeFromLeft (gap);
-    importButton.setBounds (filterRow.removeFromLeft (juce::jmax (0, juce::jmin (70, filterRow.getWidth()))));
+    // Export/Import claimed from the right first, so a narrow pane eats into
+    // the toggles rather than pushing the buttons off the edge.
+    importButton.setBounds (filterRow.removeFromRight (juce::jmin (70, filterRow.getWidth() / 4)));
+    filterRow.removeFromRight (gap / 2);
+    exportButton.setBounds (filterRow.removeFromRight (juce::jmin (70, filterRow.getWidth() / 3)));
+    filterRow.removeFromRight (gap);
+
+    const int toggleWidth = juce::jmax (46, filterRow.getWidth() / 3);
+    showUnrated.setBounds (filterRow.removeFromLeft (toggleWidth));
+    showKeep.setBounds (filterRow.removeFromLeft (juce::jmin (toggleWidth, filterRow.getWidth())));
+    showPass.setBounds (filterRow.removeFromLeft (juce::jmax (0, filterRow.getWidth())));
 
     right.removeFromTop (gap);
 
     auto buttonRow = right.removeFromBottom (rowHeight());
-    const int actionWidth = juce::jmax (52, (buttonRow.getWidth() - gap * 3) / 4);
+    // Remove is destructive and sits apart from the rating actions, hard right
+    // with a gap wide enough that it is not a neighbouring tap target.
+    removeButton.setBounds (buttonRow.removeFromRight (juce::jmin (80, buttonRow.getWidth() / 3)));
+    buttonRow.removeFromRight (gap * 3);
+
+    const int actionWidth = juce::jmax (46, (buttonRow.getWidth() - gap * 2) / 3);
     keepButton.setBounds (buttonRow.removeFromLeft (actionWidth));
     buttonRow.removeFromLeft (gap);
-    passButton.setBounds (buttonRow.removeFromLeft (actionWidth));
+    passButton.setBounds (buttonRow.removeFromLeft (juce::jmin (actionWidth, buttonRow.getWidth())));
     buttonRow.removeFromLeft (gap);
-    sendSelectedButton.setBounds (buttonRow.removeFromLeft (actionWidth));
-    buttonRow.removeFromLeft (gap);
-    removeButton.setBounds (buttonRow.removeFromLeft (juce::jmax (0, buttonRow.getWidth())));
+    sendSelectedButton.setBounds (buttonRow.removeFromLeft (juce::jmax (0, buttonRow.getWidth())));
 
     right.removeFromBottom (gap);
     noteEditor.setBounds (right.removeFromBottom (rowHeight()));
@@ -633,8 +752,29 @@ void CompanionView::applyTheme()
     // change through the tree explicitly.
     sendLookAndFeelChange();
 
+    for (auto* caveat : { &readCaveat, &mixCaveat })
+        caveat->setColour (juce::Label::textColourId, t.fgMuted);
+
+    buildStamp.setColour (juce::Label::textColourId, t.fgFaint);
+
+    // Send-only controls start dimmed: 100 and 40 are our defaults, not a
+    // reading of the hardware, and the panel should not imply otherwise.
+    const float mixAlpha = mixTouched ? 1.0f : 0.55f;
+    volumeSlider.setAlpha (mixAlpha);
+    reverbSlider.setAlpha (mixAlpha);
+
     refreshConnectionLabel();
     repaint();
+}
+
+void CompanionView::markMixTouched()
+{
+    if (mixTouched)
+        return;
+
+    mixTouched = true;
+    volumeSlider.setAlpha (1.0f);
+    reverbSlider.setAlpha (1.0f);
 }
 
 void CompanionView::refreshFromModel()
@@ -711,8 +851,22 @@ void CompanionView::rateSelected (SeedEntry::Rating rating)
 
 void CompanionView::removeSelected()
 {
-    if (const auto seed = selectedSeed())
-        model.library().remove (*seed);
+    const auto seed = selectedSeed();
+    if (! seed)
+        return;
+
+    const auto removed = model.library().remove (*seed);
+    if (! removed)
+        return;
+
+    undoToast.show ("Removed " + removed->displayName(),
+                    [this, entry = *removed]
+                    {
+                        model.library().reinsert (entry);
+                        appendLog ("Restored " + entry.displayName());
+                    });
+
+    appendLog ("Removed " + removed->displayName() + " -- undo available for a few seconds");
 }
 
 void CompanionView::sendSelected()
@@ -762,6 +916,22 @@ void CompanionView::paintListBoxItem (int row, juce::Graphics& g, int width, int
         detail += "  -  " + entry.note;
 
     g.drawText (detail, 10, height / 2, width - 34, height / 2 - 2, juce::Justification::centredLeft);
+}
+
+juce::String CompanionView::getNameForRow (int row)
+{
+    if (row < 0 || row >= static_cast<int> (visibleEntries.size()))
+        return {};
+
+    const auto& entry = visibleEntries[static_cast<std::size_t> (row)];
+
+    juce::String rating = "unrated";
+    if (entry.rating == SeedEntry::Rating::keep) rating = "kept";
+    if (entry.rating == SeedEntry::Rating::pass) rating = "passed";
+
+    // Spoken, not shown: colour and the K/P letter are the visual channels.
+    return entry.displayName() + ", " + rating + ", " + entry.summary()
+         + (entry.note.isNotEmpty() ? ", note: " + entry.note : juce::String());
 }
 
 void CompanionView::selectedRowsChanged (int)

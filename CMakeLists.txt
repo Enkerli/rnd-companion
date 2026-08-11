@@ -108,9 +108,20 @@ if(RND_BUILD_APP)
             PLUGIN_CODE  Rndc
             BUNDLE_ID    "com.enkerli.RndCompanion"
             VERSION      "0.1.0"
+            ICON_BIG     "${CMAKE_CURRENT_SOURCE_DIR}/Assets/icon.png"
             DESCRIPTION  "Capture, send and curate patch seeds on a Cymaforma RND Synth")
 
         juce_generate_juce_header(RndCompanion)
+
+        # Build stamp, regenerated every build so the UI can say which build is
+        # running (F2 of the 2026-08-11 design audit).
+        set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/BuildStamp.h")
+        add_custom_command(OUTPUT "${_stamp}"
+            COMMAND ${CMAKE_COMMAND} -DOUTPUT=${_stamp} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenBuildStamp.cmake"
+            COMMENT "Stamping build" VERBATIM)
+        add_custom_target(RndCompanionBuildStamp DEPENDS "${_stamp}")
+        add_dependencies(RndCompanion RndCompanionBuildStamp)
+        target_include_directories(RndCompanion PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
         target_sources(RndCompanion PRIVATE
             Source/Plugin/CompanionProcessor.cpp

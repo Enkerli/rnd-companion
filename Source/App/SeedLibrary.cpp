@@ -157,13 +157,24 @@ void SeedLibrary::setNote (std::uint32_t seed, const juce::String& note)
     changed();
 }
 
-void SeedLibrary::remove (std::uint32_t seed)
+std::optional<SeedEntry> SeedLibrary::remove (std::uint32_t seed)
 {
     const int index = indexOf (seed);
     if (index < 0)
+        return std::nullopt;
+
+    const SeedEntry removed = items[static_cast<std::size_t> (index)];
+    items.erase (items.begin() + index);
+    changed();
+    return removed;
+}
+
+void SeedLibrary::reinsert (const SeedEntry& entry)
+{
+    if (indexOf (entry.seed) >= 0)
         return;
 
-    items.erase (items.begin() + index);
+    items.push_back (entry);
     changed();
 }
 

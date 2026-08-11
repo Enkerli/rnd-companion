@@ -25,6 +25,7 @@ public:
 private:
     // ListBoxModel
     int getNumRows() override;
+    juce::String getNameForRow (int row) override;
     void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
     void selectedRowsChanged (int lastRow) override;
     void listBoxItemDoubleClicked (int row, const juce::MouseEvent&) override;
@@ -37,6 +38,7 @@ private:
     void refreshLibrary();
 
     void refreshFromModel();
+    void markMixTouched();
     void darkModeSettingChanged() override;
     void applyTheme();
     void appendLog (const juce::String&);
@@ -64,6 +66,23 @@ private:
     };
 
     int naturalContentHeight (int width) const;
+
+    /// The suite's delete idiom is undo-toast, not a bare destructive button.
+    /// This is the native equivalent of the shared web component.
+    struct UndoToast : juce::Component,
+                       private juce::Timer
+    {
+        UndoToast();
+        void show (const juce::String& message, std::function<void()> undoAction);
+        void dismiss();
+        void paint (juce::Graphics&) override;
+        void resized() override;
+        void timerCallback() override;
+
+        juce::Label      message;
+        juce::TextButton undoButton { "Undo" };
+        std::function<void()> onUndo;
+    };
 
     //==============================================================================
     CompanionModel& model;
@@ -96,6 +115,7 @@ private:
     juce::TextButton readButton   { "Read device" };
     juce::TextButton captureButton { "Add to library" };
     juce::Label      readCaveat;
+    juce::Label      mixCaveat;
 
     // Live controls
     juce::Label     liveHeading { {}, "Live" };
@@ -116,8 +136,15 @@ private:
     juce::TextEditor noteEditor;
     juce::TextButton exportButton { "Export" };
     juce::TextButton importButton { "Import" };
+    UndoToast        undoToast;
+
+    juce::Label      buildStamp;
 
     std::vector<SeedEntry> visibleEntries;
+
+    /// Volume/reverb are send-only; until touched they are our defaults, not a
+    /// reading, and are shown dimmed to say so.
+    bool mixTouched = false;
 
     /// Raised panels painted behind the two columns.
     std::vector<juce::Rectangle<int>> panelBounds;

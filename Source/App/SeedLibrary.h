@@ -53,7 +53,13 @@ public:
 
     void setRating (std::uint32_t seed, SeedEntry::Rating rating);
     void setNote   (std::uint32_t seed, const juce::String& note);
-    void remove    (std::uint32_t seed);
+    /// Returns what was removed, so the caller can offer an undo. Deleting a
+    /// curated seed is the one destructive act in this app; it does not happen
+    /// without a way back.
+    std::optional<SeedEntry> remove (std::uint32_t seed);
+
+    /// Puts a removed entry back exactly as it was.
+    void reinsert (const SeedEntry&);
 
     const std::vector<SeedEntry>& entries() const noexcept { return items; }
     const SeedEntry* find (std::uint32_t seed) const;

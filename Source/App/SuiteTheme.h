@@ -24,6 +24,17 @@ struct Theme
     juce::Colour border, borderSoft, borderStrong;
     juce::Colour accent, accentFg, danger;
 
+    // ── Local extensions, pending promotion ─────────────────────────────────
+    // These two have no counterpart in tokens.css, which exposes only
+    // --es-accent and --es-danger. They are derived from documented dimension
+    // colours rather than invented, but a WASM or web build of this UI would
+    // have no matching token, so the two surfaces could drift.
+    //
+    // Raised by the 2026-08-11 design audit (F3) as worth promoting to
+    // first-class suite tokens (both themes, >=3:1). That is a design-system
+    // decision for the monorepo, not one to make from inside a single plugin --
+    // so it stays flagged here until it is taken.
+
     /// Caution, not destruction: the "pressure" dimension colour. Warnings that
     /// are about hardware state rather than about losing data.
     juce::Colour caution;

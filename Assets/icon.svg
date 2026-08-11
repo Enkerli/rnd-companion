@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="RND Companion">
+  <rect x="16" y="16" width="992" height="992" rx="208" fill="#f5f2eb"></rect>
+  <rect x="16" y="16" width="992" height="992" rx="208" fill="none" stroke="#ddd6ca" stroke-width="12"></rect>
+  
+  <path d="M 491 210 A 140 140 0 0 1 590 309" fill="none" stroke="#2d2b27" stroke-width="24" stroke-linecap="round"></path>
+  <path d="M 512 132 A 220 220 0 0 1 668 288" fill="none" stroke="#2d2b27" stroke-width="24" stroke-linecap="round"></path>
+  <path d="M 533 55 A 300 300 0 0 1 745 267" fill="none" stroke="#2d2b27" stroke-width="24" stroke-linecap="round"></path>
+  
+  <path d="M 455 345 C 585 420, 585 700, 455 775 C 325 700, 325 420, 455 345 Z" fill="#228833" stroke="#2d2b27" stroke-width="16" stroke-linejoin="round"></path>
+  
+  <circle cx="455" cy="632" r="34" fill="#fcfbf7" stroke="#2d2b27" stroke-width="12"></circle>
+</svg>
