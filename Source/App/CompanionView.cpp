@@ -86,101 +86,43 @@ CompanionView::CompanionView (CompanionModel& m)
     juce::Component::addAndMakeVisible (viewport);
     juce::Component::addChildComponent (undoToast);   // hidden until something is removed
 
-    // Light is the suite's default design target; dark is a first-class
-    // variant. "Auto" follows the OS until the person chooses -- DESIGN.md.
-    themeLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    content.addAndMakeVisible (themeLabel);
-
-    themeCombo.addItem ("Auto", 1);
-    themeCombo.addItem ("Light", 2);
-    themeCombo.addItem ("Dark", 3);
-    themeCombo.setSelectedId (static_cast<int> (model.themeMode()) + 1, juce::dontSendNotification);
-    themeCombo.onChange = [this]
-    {
-        model.setThemeMode (static_cast<CompanionModel::ThemeMode> (themeCombo.getSelectedId() - 1));
-        applyTheme();
-    };
-    content.addAndMakeVisible (themeCombo);
-
     juce::Desktop::getInstance().addDarkModeSettingListener (this);
 
-    // ── Ports ───────────────────────────────────────────────────────────────
-    content.addAndMakeVisible (portsHeading);
-
-    inputCombo.setTextWhenNoChoicesAvailable ("No MIDI inputs");
-    inputCombo.setTextWhenNothingSelected ("MIDI in");
-    inputCombo.onChange = [this]
+    // ── Shared Frame ────────────────────────────────────────────────────────
+    // The suite's global cluster, in its fixed order. Everything that used to
+    // be a loose header control lives here now, in the place a person who uses
+    // another suite app already looks.
+    frame.onThemeChange = [this] (SharedFrame::ThemeChoice choice)
     {
-        const auto identifier = inputCombo.getSelectedId() > 0
-                              ? model.link().availableInputs()[inputCombo.getSelectedId() - 1].identifier
-                              : juce::String();
-        if (identifier.isNotEmpty())
-            model.link().openInput (identifier);
+        model.setThemeMode (static_cast<CompanionModel::ThemeMode> (choice));
+        applyTheme();
     };
-    content.addAndMakeVisible (inputCombo);
 
-    outputCombo.setTextWhenNoChoicesAvailable ("No MIDI outputs");
-    outputCombo.setTextWhenNothingSelected ("MIDI out");
-    outputCombo.onChange = [this]
+    frame.onSelectInput  = [this] (const juce::String& id) { model.link().openInput (id); };
+    frame.onSelectOutput = [this] (const juce::String& id) { model.link().openOutput (id); };
+    frame.onFindDevice   = [this] { model.link().connectToRnd(); refreshFrameMidiState(); };
+    frame.onRescan       = [this] { refreshFrameMidiState(); };
+
+    frame.onDensityChange = [this] (bool) { resized(); repaint(); };
+
+    frame.onLibraryToggle = [this] (bool shown)
     {
-        const auto identifier = outputCombo.getSelectedId() > 0
-                              ? model.link().availableOutputs()[outputCombo.getSelectedId() - 1].identifier
-                              : juce::String();
-        if (identifier.isNotEmpty())
-            model.link().openOutput (identifier);
+        libraryShown = shown;
+        const std::initializer_list<juce::Component*> libraryParts {
+            &libraryHeading, &showUnrated, &showKeep, &showPass, &exportButton, &importButton,
+            &libraryList, &noteEditor, &keepButton, &passButton, &sendSelectedButton, &removeButton
+        };
+        for (auto* c : libraryParts)
+            c->setVisible (shown);
+
+        resized();
     };
-    content.addAndMakeVisible (outputCombo);
 
-    rescanButton.onClick = [this] { refreshPortLists(); };
-    content.addAndMakeVisible (rescanButton);
-
-    autoConnectButton.onClick = [this]
-    {
-        // With two interfaces plugged in, silently picking one leaves the user
-        // guessing which.
-        juce::StringArray matches;
-        for (const auto& device : model.link().availableOutputs())
-            if (DeviceLink::looksLikeRnd (device.name))
-                matches.add (device.name);
-
-        model.link().connectToRnd();
-        refreshPortLists();
-
-        if (matches.size() > 1)
-            appendLog ("More than one port matches 'RND' (" + matches.joinIntoString (", ")
-                       + "). Using " + model.link().outputName() + " -- pick another above if wrong.");
-    };
-    content.addAndMakeVisible (autoConnectButton);
+    frame.setBuildId (RND_BUILD_STAMP);
+    frame.setThemeChoice (static_cast<SharedFrame::ThemeChoice> (model.themeMode()));
+    content.addAndMakeVisible (frame);
 
     content.addAndMakeVisible (connectionLabel);
-
-    // Which build is running -- the first thing to check when the UI and the
-    // engine disagree.
-    buildStamp.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
-    buildStamp.setJustificationType (juce::Justification::centredRight);
-    buildStamp.setText ("build " RND_BUILD_STAMP, juce::dontSendNotification);
-    buildStamp.setTooltip ("Build stamp. Quote this when reporting anything odd.");
-    content.addAndMakeVisible (buildStamp);
-
-    transportLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    content.addAndMakeVisible (transportLabel);
-
-    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::direct), 1);
-    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::host), 2);
-    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::both), 3);
-    transportCombo.setSelectedId (1, juce::dontSendNotification);
-    transportCombo.setTooltip ("Direct works in every host and needs no routing. Host uses the "
-                               "plugin's MIDI stream -- proven in AUM, not in Logic or Bitwig.");
-    transportCombo.onChange = [this]
-    {
-        switch (transportCombo.getSelectedId())
-        {
-            case 2:  model.setTransport (CompanionModel::Transport::host); break;
-            case 3:  model.setTransport (CompanionModel::Transport::both); break;
-            default: model.setTransport (CompanionModel::Transport::direct); break;
-        }
-    };
-    content.addAndMakeVisible (transportCombo);
 
     // ── Device ──────────────────────────────────────────────────────────────
     content.addAndMakeVisible (deviceHeading);
@@ -354,7 +296,7 @@ CompanionView::CompanionView (CompanionModel& m)
     model.link().onConnectionChanged = [this] { refreshConnectionLabel(); };
     model.library().onChanged = [this] { refreshLibrary(); };
 
-    refreshPortLists();
+    refreshFrameMidiState();
     refreshStatusDisplay();
     refreshLibrary();
 
@@ -445,37 +387,14 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     logView.setBounds (area.removeFromBottom (narrow ? 80 : 110));
     area.removeFromBottom (gap);
 
-    // ── Ports: always two rows, so nothing depends on the width ────────────
-    portsHeading.setBounds (area.removeFromTop (headerHeight()));
-
-    auto portRow = area.removeFromTop (rowHeight());
-
-    // Claimed first: laid out last it gets whatever the combos leave, which is
-    // nothing.
-    buildStamp.setBounds (portRow.removeFromRight (juce::jmin (140, portRow.getWidth() / 5)));
-    portRow.removeFromRight (gap);
-
-    const int comboWidth = juce::jmax (110, (portRow.getWidth() - 190 - gap * 3) / 2);
-    inputCombo.setBounds (portRow.removeFromLeft (comboWidth));
-    portRow.removeFromLeft (gap);
-    outputCombo.setBounds (portRow.removeFromLeft (comboWidth));
-    portRow.removeFromLeft (gap);
-    autoConnectButton.setBounds (portRow.removeFromLeft (juce::jmin (90, portRow.getWidth())));
-    portRow.removeFromLeft (gap);
-    rescanButton.setBounds (portRow.removeFromLeft (juce::jmax (0, juce::jmin (80, portRow.getWidth()))));
-
+    // ── Shared Frame, then the app's own row ───────────────────────────────
+    frame.setBounds (area.removeFromTop (frame.preferredHeight()));
     area.removeFromTop (gap / 2);
+
     auto transportRow = area.removeFromTop (rowHeight());
     transportLabel.setBounds (transportRow.removeFromLeft (44));
-    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 3)));
+    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 2)));
     transportRow.removeFromLeft (gap);
-
-    // Theme sits at the far right of the same row: a global setting, kept away
-    // from the device controls it does not affect.
-    themeCombo.setBounds (transportRow.removeFromRight (juce::jmin (100, transportRow.getWidth() / 3)));
-    themeLabel.setBounds (transportRow.removeFromRight (juce::jmin (48, transportRow.getWidth() / 3)));
-    transportRow.removeFromRight (gap);
-
     connectionLabel.setBounds (transportRow);
 
     area.removeFromTop (gap * 2);
@@ -483,7 +402,12 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     // ── Below: two columns when there is room, stacked when there is not ───
     juce::Rectangle<int> left, right;
 
-    if (narrow)
+    if (! libraryShown)
+    {
+        left = area;
+        right = {};
+    }
+    else if (narrow)
     {
         // The device column gets what it needs; the library takes the rest.
         // Splitting down the middle is what made Live disappear.
@@ -503,7 +427,8 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
         right = area;
     }
 
-    panelBounds = { left.expanded (gap), right.expanded (gap) };
+    panelBounds = right.isEmpty() ? std::vector<juce::Rectangle<int>> { left.expanded (gap) }
+                                  : std::vector<juce::Rectangle<int>> { left.expanded (gap), right.expanded (gap) };
     left = left.reduced (gap / 2);
     right = right.reduced (gap / 2);
 
@@ -595,31 +520,28 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
 //==============================================================================
 void CompanionView::timerCallback()
 {
-    const auto inputs = model.link().availableInputs();
-    const auto outputs = model.link().availableOutputs();
+    // Ports come and go while the app runs; a slow poll keeps the frame honest
+    // without a platform-specific hotplug callback.
+    static int lastPortCount = -1;
+    const int ports = model.link().availableInputs().size() + model.link().availableOutputs().size();
 
-    if (inputs.size() != inputCombo.getNumItems() || outputs.size() != outputCombo.getNumItems())
-        refreshPortLists();
+    if (ports != lastPortCount)
+    {
+        lastPortCount = ports;
+        refreshFrameMidiState();
+    }
 }
 
-void CompanionView::refreshPortLists()
+void CompanionView::refreshFrameMidiState()
 {
-    const auto fill = [] (juce::ComboBox& combo, const juce::Array<juce::MidiDeviceInfo>& devices,
-                          const juce::String& openIdentifier)
-    {
-        combo.clear (juce::dontSendNotification);
+    SharedFrame::MidiState state;
+    state.inputs         = model.link().availableInputs();
+    state.outputs        = model.link().availableOutputs();
+    state.selectedInput  = model.link().inputIdentifier();
+    state.selectedOutput = model.link().outputIdentifier();
+    state.connected      = model.link().isConnected();
 
-        for (int i = 0; i < devices.size(); ++i)
-            combo.addItem (devices[i].name, i + 1);
-
-        for (int i = 0; i < devices.size(); ++i)
-            if (devices[i].identifier == openIdentifier)
-                combo.setSelectedId (i + 1, juce::dontSendNotification);
-    };
-
-    fill (inputCombo, model.link().availableInputs(), model.link().inputIdentifier());
-    fill (outputCombo, model.link().availableOutputs(), model.link().outputIdentifier());
-
+    frame.setMidiState (state);
     refreshConnectionLabel();
 }
 
@@ -691,6 +613,7 @@ void CompanionView::refreshLibrary()
                                        showKeep.getToggleState(),
                                        showPass.getToggleState());
     libraryList.updateContent();
+    frame.setLibraryState (libraryShown, static_cast<int> (visibleEntries.size()));
 
     if (previous)
     {
@@ -722,7 +645,7 @@ void CompanionView::applyTheme()
 
     const auto& t = lookAndFeel.theme();
 
-    for (auto* heading : { &portsHeading, &deviceHeading, &liveHeading, &libraryHeading })
+    for (auto* heading : { &deviceHeading, &liveHeading, &libraryHeading })
     {
         heading->setFont (suite::SuiteLookAndFeel::eyebrowFont());
         heading->setColour (juce::Label::textColourId, t.fgMuted);
@@ -733,7 +656,7 @@ void CompanionView::applyTheme()
     readCaveat.setColour (juce::Label::textColourId, t.fgMuted);
     lockWarning.setColour (juce::Label::textColourId, t.caution);
 
-    for (auto* label : { &scaleLabel, &tonicLabel, &volumeLabel, &reverbLabel, &transportLabel, &themeLabel })
+    for (auto* label : { &scaleLabel, &tonicLabel, &volumeLabel, &reverbLabel, &transportLabel })
         label->setColour (juce::Label::textColourId, t.fgMuted);
 
     logView.setColour (juce::TextEditor::backgroundColourId, t.bgSunken);
@@ -755,7 +678,6 @@ void CompanionView::applyTheme()
     for (auto* caveat : { &readCaveat, &mixCaveat })
         caveat->setColour (juce::Label::textColourId, t.fgMuted);
 
-    buildStamp.setColour (juce::Label::textColourId, t.fgFaint);
 
     // Send-only controls start dimmed: 100 and 40 are our defaults, not a
     // reading of the hardware, and the panel should not imply otherwise.

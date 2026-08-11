@@ -131,6 +131,7 @@ if(RND_BUILD_APP)
             Source/App/DeviceLink.cpp
             Source/App/RndCommands.cpp
             Source/App/SeedLibrary.cpp
+            Source/App/SharedFrame.cpp
             Source/App/SuiteTheme.cpp)
 
         # enkerli-juce's file helpers: a plain FileChooser does nothing inside an

@@ -47,12 +47,14 @@ Theme Theme::dark()
 
 namespace metrics
 {
-    int controlHeight()
+    int controlHeight (bool dense)
     {
        #if JUCE_IOS || JUCE_ANDROID
-        return 44;   // touch target
+        // Even compact stays a usable touch target; it just stops being
+        // generous.
+        return dense ? 36 : 44;
        #else
-        return 32;
+        return dense ? 26 : 32;
        #endif
     }
 }

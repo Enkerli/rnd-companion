@@ -92,6 +92,34 @@ turns. Same card, radius, border and ink as the rest of the suite; green
 (`es-pc-2`) was the one unclaimed hue on the suite wheel. Drawn in the
 paper-&-ink grammar by a Claude design pass, 2026-08-11.
 
+## The Shared Frame
+
+The suite's global cluster, in its fixed order: **theme · MIDI · density ·
+Library · build**. That order is the point — someone who learns where the theme
+control lives in another suite app finds it in the same place here.
+
+The web cluster has a `native: true` mode whose MIDI chip reads "MIDI · native"
+because routing belongs to the host. This app owns its ports, so the same slot
+does the job for real: the chip shows connection state and opens a panel with In
+and Out plus Find RND and Rescan.
+
+Density is a setting, not a redesign — Comfortable/Compact moves one number
+(`--es-ctl-h`), which is what makes a small AUv3 pane usable. The Library slot
+hides the whole seed column and shows its count. The build chip is the rightmost
+and non-interactive: it answers "which build am I looking at?" and nothing else.
+
+## The library
+
+Seeds are stored as `enkerli-library-item` envelopes (the suite's LIBRARY_SPEC),
+`kind: patch`, `format: rnd-seed`. That buys stable identity, provenance and
+facets you can actually search — "dorian", not scale index 6 — and it means a
+library saved here opens in the rest of the suite. Files written by the earlier
+private format are migrated on load, once.
+
+The captured root is recorded as `rootWhenCaptured`, not as a tonic: the device
+reports the root it is playing at that moment, and it moves while a patch runs.
+Recording it as a setting would be a claim the hardware never made.
+
 ## Look and feel
 
 The suite's "paper & ink" language, taken from `@enkerli/ui` tokens

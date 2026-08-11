@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CompanionModel.h"
+#include "SharedFrame.h"
 #include "SuiteTheme.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
@@ -32,7 +33,7 @@ private:
 
     void timerCallback() override;
 
-    void refreshPortLists();
+    void refreshFrameMidiState();
     void refreshConnectionLabel();
     void refreshStatusDisplay();
     void refreshLibrary();
@@ -94,16 +95,12 @@ private:
     juce::ComboBox transportCombo;
 
     suite::SuiteLookAndFeel lookAndFeel;
-    juce::Label    themeLabel { {}, "Theme" };
-    juce::ComboBox themeCombo;
     juce::TooltipWindow tooltips { this };
 
-    // Ports
-    juce::Label     portsHeading { {}, "MIDI" };
-    juce::ComboBox  inputCombo, outputCombo;
-    juce::TextButton rescanButton { "Rescan" };
-    juce::TextButton autoConnectButton { "Find RND" };
+    // The suite's Shared Frame: theme · MIDI · density · Library · build.
+    SharedFrame     frame;
     juce::Label     connectionLabel;
+    bool            libraryShown = true;
 
     // Device
     juce::Label      deviceHeading { {}, "Device" };
@@ -138,7 +135,6 @@ private:
     juce::TextButton importButton { "Import" };
     UndoToast        undoToast;
 
-    juce::Label      buildStamp;
 
     std::vector<SeedEntry> visibleEntries;
 

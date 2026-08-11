@@ -62,8 +62,9 @@ namespace metrics
     inline constexpr int sectionHeader = 28;
 
     /// 32px with a pointer, 44px on touch. Touch wins on iOS, where every
-    /// target is a fingertip.
-    int controlHeight();
+    /// target is a fingertip. `dense` is the .es-dense equivalent: density is a
+    /// setting, not a redesign (DESIGN.md), so it moves this one number.
+    int controlHeight (bool dense = false);
 }
 
 //==============================================================================

@@ -118,15 +118,25 @@ void CompanionModel::handleMessage (const rnd::Message& message)
     if (wasSeed && deviceStatus.seed != previousSeed)
         log ("Device is on " + juce::String (rnd::formatSeed (*deviceStatus.seed)));
 
-    // A full dump is the only moment a seed's metadata is known -- but the
-    // device re-broadcasts everything hundreds of times a second, so this fires
-    // on a new seed, never on every globals frame.
-    if (std::get_if<rnd::GlobalsMessage> (&message) != nullptr
-        && deviceStatus.seed
-        && deviceStatus.seed != lastAutoCapturedSeed)
+    // A dump arrives as 10 -> 20 -> 21 -> 22 x N, so the globals frame is the
+    // first moment a seed's metadata is known -- but NOT the last: the engine
+    // names come after it. Capturing only on globals recorded every seed with
+    // an empty engine list, which is how nine real entries came to have none.
+    //
+    // So: capture on globals for a new seed, then let each engine frame refresh
+    // it. Identical captures are dropped and saves are coalesced, so the
+    // device's constant re-broadcast still costs nothing.
+    if (deviceStatus.seed)
     {
-        lastAutoCapturedSeed = deviceStatus.seed;
-        seedLibrary.captureSeed (*deviceStatus.seed, deviceStatus);
+        const bool globals = std::get_if<rnd::GlobalsMessage> (&message) != nullptr;
+        const bool engine  = std::get_if<rnd::TrackEngineMessage> (&message) != nullptr;
+        const bool newSeed = deviceStatus.seed != lastAutoCapturedSeed;
+
+        if ((globals && newSeed) || (engine && ! newSeed))
+        {
+            lastAutoCapturedSeed = deviceStatus.seed;
+            seedLibrary.captureSeed (*deviceStatus.seed, deviceStatus);
+        }
     }
 
     if (onStatusChanged != nullptr)

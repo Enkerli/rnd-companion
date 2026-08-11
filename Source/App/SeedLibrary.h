@@ -1,11 +1,20 @@
 #pragma once
 
-// Curated seeds, kept on disk as JSON.
+// Curated seeds, kept on disk as suite library items.
 //
 // Because we do not reimplement the device's generator, an entry's musical
 // metadata is whatever the hardware told us while that seed was playing. The
 // library is populated by listening, not by computing -- so a seed captured
 // without a full status dump is still a valid entry, just a sparser one.
+//
+// On disk each seed is an `enkerli-library-item` envelope (the suite's
+// LIBRARY_SPEC): kind `patch`, format `rnd-seed`, with the RND-specific part
+// carried verbatim as the payload. That buys stable identity, provenance, and
+// facets a person can actually search -- "dorian", not scale index 6 -- and it
+// means a library exported here opens in the rest of the suite. The TypeScript
+// twin is @enkerli/rnd/library, tested against the suite's own validator.
+//
+// Files written by the earlier private format are migrated on load.
 
 #include "../Protocol/RndProtocol.h"
 
@@ -28,6 +37,12 @@ struct SeedEntry
     juce::String  note;
     juce::int64   capturedAtMs {};
 
+    /// Envelope identity. Stable across saves, never derived from the seed --
+    /// LIBRARY_SPEC forbids deriving the id from the title.
+    juce::String  id;
+    /// Absolute ISO 8601, seconds precision. Never a file-system date.
+    juce::String  savedAt;
+
     // Snapshot of what the device reported, when it reported anything.
     bool          hasStatus {};
     int           patchMode {};
@@ -38,6 +53,9 @@ struct SeedEntry
 
     juce::String  displayName() const;
     juce::String  summary() const;
+
+    /// True once the device has told us what this seed sounds like.
+    bool hasFullCapture() const noexcept { return hasStatus; }
 };
 
 class SeedLibrary : private juce::Timer
@@ -99,6 +117,8 @@ private:
     bool fromVar (const juce::var& value, bool merge);
 
     static bool sameContent (const SeedEntry&, const SeedEntry&);
+    static bool readEnvelopeItem (const juce::var&, SeedEntry&);
+    static bool readLegacyItem (const juce::var&, SeedEntry&);
 
     std::vector<SeedEntry> items;
     juce::File storage;
