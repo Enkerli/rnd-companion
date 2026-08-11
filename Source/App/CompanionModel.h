@@ -25,6 +25,18 @@ public:
     CompanionModel();
     ~CompanionModel() override;
 
+    /// Light is the suite's default design target; automatic follows the OS
+    /// until the person chooses. Order matches the combo and the saved state.
+    enum class ThemeMode
+    {
+        automatic,
+        light,
+        dark
+    };
+
+    void      setThemeMode (ThemeMode mode) { currentTheme = mode; }
+    ThemeMode themeMode() const noexcept { return currentTheme; }
+
     enum class Transport
     {
         direct,   ///< Our own MIDI port. Works in every host, needs no routing.
@@ -73,6 +85,7 @@ private:
     SeedLibrary       seedLibrary;
     rnd::DeviceStatus deviceStatus;
     Transport         currentTransport { Transport::direct };
+    ThemeMode         currentTheme { ThemeMode::automatic };
 
     /// Guards the auto-capture against the device's repeated status broadcasts.
     std::optional<std::uint32_t> lastAutoCapturedSeed;

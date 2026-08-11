@@ -1,12 +1,14 @@
 #pragma once
 
 #include "CompanionModel.h"
+#include "SuiteTheme.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
 class CompanionView : public juce::Component,
                       private juce::ListBoxModel,
-                      private juce::Timer
+                      private juce::Timer,
+                      private juce::DarkModeSettingListener
 {
 public:
     explicit CompanionView (CompanionModel&);
@@ -30,6 +32,8 @@ private:
     void refreshLibrary();
 
     void refreshFromModel();
+    void darkModeSettingChanged() override;
+    void applyTheme();
     void appendLog (const juce::String&);
 
     void sendSeedFromEditor();
@@ -47,6 +51,11 @@ private:
 
     juce::Label    transportLabel { {}, "Route" };
     juce::ComboBox transportCombo;
+
+    suite::SuiteLookAndFeel lookAndFeel;
+    juce::Label    themeLabel { {}, "Theme" };
+    juce::ComboBox themeCombo;
+    juce::TooltipWindow tooltips { this };
 
     // Ports
     juce::Label     portsHeading { {}, "MIDI" };
@@ -87,6 +96,9 @@ private:
     juce::TextButton importButton { "Import" };
 
     std::vector<SeedEntry> visibleEntries;
+
+    /// Raised panels painted behind the two columns.
+    std::vector<juce::Rectangle<int>> panelBounds;
 
     // Log
     juce::TextEditor logView;

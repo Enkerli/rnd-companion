@@ -119,7 +119,8 @@ if(RND_BUILD_APP)
             Source/App/CompanionView.cpp
             Source/App/DeviceLink.cpp
             Source/App/RndCommands.cpp
-            Source/App/SeedLibrary.cpp)
+            Source/App/SeedLibrary.cpp
+            Source/App/SuiteTheme.cpp)
 
         # enkerli-juce's file helpers: a plain FileChooser does nothing inside an
         # AUv3 app extension. On iOS these become a share sheet and a document

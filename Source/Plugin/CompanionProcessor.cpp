@@ -25,6 +25,7 @@ void CompanionProcessor::getStateInformation (juce::MemoryBlock& destination)
     // lives in state, not automation. The library is its own file.
     juce::ValueTree state ("RndCompanion");
     state.setProperty ("transport", static_cast<int> (companionModel.transport()), nullptr);
+    state.setProperty ("theme", static_cast<int> (companionModel.themeMode()), nullptr);
 
     if (const auto seed = companionModel.status().seed)
         state.setProperty ("seed", juce::String (rnd::formatSeed (*seed)), nullptr);
@@ -43,6 +44,9 @@ void CompanionProcessor::setStateInformation (const void* data, int size)
 
         const int transport = state.getProperty ("transport", 0);
         companionModel.setTransport (static_cast<CompanionModel::Transport> (juce::jlimit (0, 2, transport)));
+
+        const int theme = state.getProperty ("theme", 0);
+        companionModel.setThemeMode (static_cast<CompanionModel::ThemeMode> (juce::jlimit (0, 2, theme)));
     }
 }
 

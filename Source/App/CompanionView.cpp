@@ -5,21 +5,38 @@
 
 namespace
 {
-    constexpr int rowHeight = 24;
-    constexpr int gap = 8;
+    constexpr int gap = 10;   // --es-gap
 
-    void styleHeading (juce::Label& label)
-    {
-        label.setFont (juce::Font (juce::FontOptions (15.0f)).boldened());
-        label.setColour (juce::Label::textColourId, juce::Colours::white);
-    }
+    // --es-ctl-h: 32 with a pointer, 44 under a fingertip.
+    inline int rowHeight() { return suite::metrics::controlHeight(); }
+    inline int headerHeight() { return suite::metrics::sectionHeader; }
+
 }
 
 CompanionView::CompanionView (CompanionModel& m)
     : model (m)
 {
+    setLookAndFeel (&lookAndFeel);
+
+    // Light is the suite's default design target; dark is a first-class
+    // variant. "Auto" follows the OS until the person chooses -- DESIGN.md.
+    themeLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
+    addAndMakeVisible (themeLabel);
+
+    themeCombo.addItem ("Auto", 1);
+    themeCombo.addItem ("Light", 2);
+    themeCombo.addItem ("Dark", 3);
+    themeCombo.setSelectedId (static_cast<int> (model.themeMode()) + 1, juce::dontSendNotification);
+    themeCombo.onChange = [this]
+    {
+        model.setThemeMode (static_cast<CompanionModel::ThemeMode> (themeCombo.getSelectedId() - 1));
+        applyTheme();
+    };
+    addAndMakeVisible (themeCombo);
+
+    juce::Desktop::getInstance().addDarkModeSettingListener (this);
+
     // ── Ports ───────────────────────────────────────────────────────────────
-    styleHeading (portsHeading);
     addAndMakeVisible (portsHeading);
 
     inputCombo.setTextWhenNoChoicesAvailable ("No MIDI inputs");
@@ -54,10 +71,9 @@ CompanionView::CompanionView (CompanionModel& m)
     };
     addAndMakeVisible (autoConnectButton);
 
-    connectionLabel.setColour (juce::Label::textColourId, juce::Colours::orange);
     addAndMakeVisible (connectionLabel);
 
-    transportLabel.setFont (juce::Font (juce::FontOptions (12.0f)));
+    transportLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
     addAndMakeVisible (transportLabel);
 
     transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::direct), 1);
@@ -78,19 +94,18 @@ CompanionView::CompanionView (CompanionModel& m)
     addAndMakeVisible (transportCombo);
 
     // ── Device ──────────────────────────────────────────────────────────────
-    styleHeading (deviceHeading);
     addAndMakeVisible (deviceHeading);
 
-    seedDisplay.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 30.0f, juce::Font::bold)));
+    // Mono with tabular figures for anything numeric-musical -- DESIGN.md.
+    seedDisplay.setFont (suite::SuiteLookAndFeel::monoFont (30.0f, true));
     seedDisplay.setText ("--", juce::dontSendNotification);
     addAndMakeVisible (seedDisplay);
 
     statusDisplay.setJustificationType (juce::Justification::topLeft);
-    statusDisplay.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible (statusDisplay);
 
-    seedEditor.setTextToShowWhenEmpty ("0x00000000 or a decimal number", juce::Colours::grey);
-    seedEditor.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 14.0f, juce::Font::plain)));
+    seedEditor.setTextToShowWhenEmpty ("0x00000000 or a decimal number", lookAndFeel.theme().fgFaint);
+    seedEditor.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textSm) + 1.0f));
     seedEditor.onReturnKey = [this] { sendSeedFromEditor(); };
     addAndMakeVisible (seedEditor);
 
@@ -106,19 +121,17 @@ CompanionView::CompanionView (CompanionModel& m)
     captureButton.onClick = [this] { captureCurrentSeed(); };
     addAndMakeVisible (captureButton);
 
-    readCaveat.setFont (juce::Font (juce::FontOptions (11.0f)));
-    readCaveat.setColour (juce::Label::textColourId, juce::Colours::grey);
+    readCaveat.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
     readCaveat.setText ("Reading mutes the device briefly. Seeds arrive on their own when you turn the knob.",
                         juce::dontSendNotification);
     addAndMakeVisible (readCaveat);
 
     // ── Live controls ───────────────────────────────────────────────────────
-    styleHeading (liveHeading);
     addAndMakeVisible (liveHeading);
 
     for (auto* label : { &scaleLabel, &tonicLabel, &volumeLabel, &reverbLabel })
     {
-        label->setFont (juce::Font (juce::FontOptions (12.0f)));
+        label->setFont (suite::SuiteLookAndFeel::eyebrowFont());
         addAndMakeVisible (*label);
     }
 
@@ -144,27 +157,25 @@ CompanionView::CompanionView (CompanionModel& m)
 
     volumeSlider.setRange (0.0, 127.0, 1.0);
     volumeSlider.setValue (100.0, juce::dontSendNotification);
-    volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
+    volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight() - 6);
     volumeSlider.onValueChange = [this] { model.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
     volumeSlider.onDragEnd     = [this] { appendLog ("Volume " + juce::String ((int) volumeSlider.getValue())); };
     addAndMakeVisible (volumeSlider);
 
     reverbSlider.setRange (0.0, 127.0, 1.0);
     reverbSlider.setValue (40.0, juce::dontSendNotification);
-    reverbSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
+    reverbSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight() - 6);
     reverbSlider.onValueChange = [this] { model.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
     reverbSlider.onDragEnd     = [this] { appendLog ("Reverb " + juce::String ((int) reverbSlider.getValue())
                                                      + " (analog mix out only, USB stems stay dry)"); };
     addAndMakeVisible (reverbSlider);
 
-    lockWarning.setFont (juce::Font (juce::FontOptions (11.0f)));
-    lockWarning.setColour (juce::Label::textColourId, juce::Colours::orange);
+    lockWarning.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
     lockWarning.setText ("Scale and tonic lock on the hardware and change what a seed produces. Power-cycle to clear.",
                          juce::dontSendNotification);
     addAndMakeVisible (lockWarning);
 
     // ── Library ─────────────────────────────────────────────────────────────
-    styleHeading (libraryHeading);
     addAndMakeVisible (libraryHeading);
 
     for (auto* toggle : { &showUnrated, &showKeep, &showPass })
@@ -175,8 +186,7 @@ CompanionView::CompanionView (CompanionModel& m)
     }
     showPass.setToggleState (false, juce::dontSendNotification);
 
-    libraryList.setRowHeight (38);
-    libraryList.setColour (juce::ListBox::backgroundColourId, juce::Colour (0xff1b1b1f));
+    libraryList.setRowHeight (juce::jmax (44, suite::metrics::controlHeight() + 14));
     addAndMakeVisible (libraryList);
 
     keepButton.onClick = [this] { rateSelected (SeedEntry::Rating::keep); };
@@ -187,7 +197,7 @@ CompanionView::CompanionView (CompanionModel& m)
     for (auto* button : { &keepButton, &passButton, &sendSelectedButton, &removeButton })
         addAndMakeVisible (*button);
 
-    noteEditor.setTextToShowWhenEmpty ("Note on the selected seed", juce::Colours::grey);
+    noteEditor.setTextToShowWhenEmpty ("Note on the selected seed", lookAndFeel.theme().fgFaint);
     noteEditor.onFocusLost = [this]
     {
         if (const auto seed = selectedSeed())
@@ -228,8 +238,7 @@ CompanionView::CompanionView (CompanionModel& m)
     logView.setReadOnly (true);
     logView.setScrollbarsShown (true);
     logView.setCaretVisible (false);
-    logView.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain)));
-    logView.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff141417));
+    logView.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
     addAndMakeVisible (logView);
 
     // ── Wiring ──────────────────────────────────────────────────────────────
@@ -242,6 +251,8 @@ CompanionView::CompanionView (CompanionModel& m)
     refreshStatusDisplay();
     refreshLibrary();
 
+    applyTheme();
+
     appendLog ("RND Companion ready. Connect the RND over USB, then press Find RND.");
 
     // Ports come and go while the app runs; a slow poll keeps the lists honest
@@ -253,13 +264,27 @@ CompanionView::CompanionView (CompanionModel& m)
 
 CompanionView::~CompanionView()
 {
+    juce::Desktop::getInstance().removeDarkModeSettingListener (this);
+    setLookAndFeel (nullptr);
+
     model.library().flush();
 }
 
 //==============================================================================
 void CompanionView::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff232328));
+    const auto& t = lookAndFeel.theme();
+    g.fillAll (t.bg);
+
+    // A raised panel behind each column, per the paper-and-ink surfaces.
+    g.setColour (t.bgRaised);
+    for (const auto& panel : panelBounds)
+        g.fillRoundedRectangle (panel.toFloat(), static_cast<float> (suite::metrics::radiusMd));
+
+    g.setColour (t.borderSoft);
+    for (const auto& panel : panelBounds)
+        g.drawRoundedRectangle (panel.toFloat().reduced (0.5f),
+                                static_cast<float> (suite::metrics::radiusMd), 1.0f);
 }
 
 void CompanionView::resized()
@@ -276,9 +301,9 @@ void CompanionView::resized()
     area.removeFromBottom (gap);
 
     // ── Ports: always two rows, so nothing depends on the width ────────────
-    portsHeading.setBounds (area.removeFromTop (rowHeight));
+    portsHeading.setBounds (area.removeFromTop (headerHeight()));
 
-    auto portRow = area.removeFromTop (rowHeight);
+    auto portRow = area.removeFromTop (rowHeight());
     const int comboWidth = juce::jmax (110, (portRow.getWidth() - 190 - gap * 3) / 2);
     inputCombo.setBounds (portRow.removeFromLeft (comboWidth));
     portRow.removeFromLeft (gap);
@@ -289,7 +314,7 @@ void CompanionView::resized()
     rescanButton.setBounds (portRow.removeFromLeft (juce::jmax (0, juce::jmin (80, portRow.getWidth()))));
 
     area.removeFromTop (gap / 2);
-    auto transportRow = area.removeFromTop (rowHeight);
+    auto transportRow = area.removeFromTop (rowHeight());
     transportLabel.setBounds (transportRow.removeFromLeft (44));
     transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 2)));
     transportRow.removeFromLeft (gap);
@@ -313,13 +338,17 @@ void CompanionView::resized()
         right = area;
     }
 
+    panelBounds = { left.expanded (gap), right.expanded (gap) };
+    left = left.reduced (gap / 2);
+    right = right.reduced (gap / 2);
+
     // ── Left: device + live ────────────────────────────────────────────────
-    deviceHeading.setBounds (left.removeFromTop (rowHeight));
+    deviceHeading.setBounds (left.removeFromTop (headerHeight()));
     seedDisplay.setBounds (left.removeFromTop (42));
     statusDisplay.setBounds (left.removeFromTop (76));
     left.removeFromTop (gap);
 
-    auto seedRow = left.removeFromTop (rowHeight);
+    auto seedRow = left.removeFromTop (rowHeight());
     seedEditor.setBounds (seedRow.removeFromLeft (juce::jmax (120, seedRow.getWidth() - 170)));
     seedRow.removeFromLeft (gap);
     sendButton.setBounds (seedRow.removeFromLeft (juce::jmin (70, seedRow.getWidth())));
@@ -327,17 +356,17 @@ void CompanionView::resized()
     randomButton.setBounds (seedRow.removeFromLeft (juce::jmax (0, juce::jmin (80, seedRow.getWidth()))));
 
     left.removeFromTop (gap);
-    auto actionRow = left.removeFromTop (rowHeight);
+    auto actionRow = left.removeFromTop (rowHeight());
     readButton.setBounds (actionRow.removeFromLeft (110));
     actionRow.removeFromLeft (gap);
     captureButton.setBounds (actionRow.removeFromLeft (juce::jmax (0, juce::jmin (120, actionRow.getWidth()))));
 
-    readCaveat.setBounds (left.removeFromTop (rowHeight));
+    readCaveat.setBounds (left.removeFromTop (rowHeight()));
     left.removeFromTop (gap);
 
-    liveHeading.setBounds (left.removeFromTop (rowHeight));
+    liveHeading.setBounds (left.removeFromTop (headerHeight()));
 
-    auto scaleRow = left.removeFromTop (rowHeight);
+    auto scaleRow = left.removeFromTop (rowHeight());
     scaleLabel.setBounds (scaleRow.removeFromLeft (50));
     scaleCombo.setBounds (scaleRow.removeFromLeft (juce::jmax (110, scaleRow.getWidth() - 130)));
     scaleRow.removeFromLeft (gap);
@@ -345,22 +374,22 @@ void CompanionView::resized()
     tonicCombo.setBounds (scaleRow.removeFromLeft (juce::jmax (0, juce::jmin (70, scaleRow.getWidth()))));
 
     left.removeFromTop (gap);
-    auto volumeRow = left.removeFromTop (rowHeight);
+    auto volumeRow = left.removeFromTop (rowHeight());
     volumeLabel.setBounds (volumeRow.removeFromLeft (56));
     volumeSlider.setBounds (volumeRow);
 
     left.removeFromTop (gap / 2);
-    auto reverbRow = left.removeFromTop (rowHeight);
+    auto reverbRow = left.removeFromTop (rowHeight());
     reverbLabel.setBounds (reverbRow.removeFromLeft (56));
     reverbSlider.setBounds (reverbRow);
 
     if (left.getHeight() > 0)
-        lockWarning.setBounds (left.removeFromTop (juce::jmin (rowHeight * 2, left.getHeight())));
+        lockWarning.setBounds (left.removeFromTop (juce::jmin (rowHeight() * 2, left.getHeight())));
 
     // ── Right: library ─────────────────────────────────────────────────────
-    libraryHeading.setBounds (right.removeFromTop (rowHeight));
+    libraryHeading.setBounds (right.removeFromTop (headerHeight()));
 
-    auto filterRow = right.removeFromTop (rowHeight);
+    auto filterRow = right.removeFromTop (rowHeight());
     showUnrated.setBounds (filterRow.removeFromLeft (72));
     showKeep.setBounds (filterRow.removeFromLeft (72));
     showPass.setBounds (filterRow.removeFromLeft (72));
@@ -371,7 +400,7 @@ void CompanionView::resized()
 
     right.removeFromTop (gap);
 
-    auto buttonRow = right.removeFromBottom (rowHeight);
+    auto buttonRow = right.removeFromBottom (rowHeight());
     const int actionWidth = juce::jmax (52, (buttonRow.getWidth() - gap * 3) / 4);
     keepButton.setBounds (buttonRow.removeFromLeft (actionWidth));
     buttonRow.removeFromLeft (gap);
@@ -382,7 +411,7 @@ void CompanionView::resized()
     removeButton.setBounds (buttonRow.removeFromLeft (juce::jmax (0, buttonRow.getWidth())));
 
     right.removeFromBottom (gap);
-    noteEditor.setBounds (right.removeFromBottom (rowHeight));
+    noteEditor.setBounds (right.removeFromBottom (rowHeight()));
     right.removeFromBottom (gap);
 
     libraryList.setBounds (right);
@@ -421,19 +450,21 @@ void CompanionView::refreshPortLists()
 
 void CompanionView::refreshConnectionLabel()
 {
+    const auto& t = lookAndFeel.theme();
+
     if (model.link().isConnected())
     {
-        connectionLabel.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
+        connectionLabel.setColour (juce::Label::textColourId, t.affirm);
         connectionLabel.setText (model.link().outputName(), juce::dontSendNotification);
     }
     else if (model.link().hasInput() || model.link().hasOutput())
     {
-        connectionLabel.setColour (juce::Label::textColourId, juce::Colours::orange);
+        connectionLabel.setColour (juce::Label::textColourId, t.caution);
         connectionLabel.setText (model.link().hasInput() ? "Input only" : "Output only", juce::dontSendNotification);
     }
     else
     {
-        connectionLabel.setColour (juce::Label::textColourId, juce::Colours::orange);
+        connectionLabel.setColour (juce::Label::textColourId, t.caution);
         connectionLabel.setText ("Not connected", juce::dontSendNotification);
     }
 }
@@ -500,6 +531,43 @@ void CompanionView::refreshLibrary()
 }
 
 //==============================================================================
+void CompanionView::darkModeSettingChanged()
+{
+    if (model.themeMode() == CompanionModel::ThemeMode::automatic)
+        applyTheme();
+}
+
+void CompanionView::applyTheme()
+{
+    const bool dark = model.themeMode() == CompanionModel::ThemeMode::dark
+                   || (model.themeMode() == CompanionModel::ThemeMode::automatic
+                       && juce::Desktop::getInstance().isDarkModeActive());
+
+    lookAndFeel.setTheme (dark ? suite::Theme::dark() : suite::Theme::light());
+
+    const auto& t = lookAndFeel.theme();
+
+    for (auto* heading : { &portsHeading, &deviceHeading, &liveHeading, &libraryHeading })
+    {
+        heading->setFont (suite::SuiteLookAndFeel::eyebrowFont());
+        heading->setColour (juce::Label::textColourId, t.fgMuted);
+    }
+
+    seedDisplay.setColour (juce::Label::textColourId, t.fg);
+    statusDisplay.setColour (juce::Label::textColourId, t.fg2);
+    readCaveat.setColour (juce::Label::textColourId, t.fgMuted);
+    lockWarning.setColour (juce::Label::textColourId, t.caution);
+
+    for (auto* label : { &scaleLabel, &tonicLabel, &volumeLabel, &reverbLabel, &transportLabel, &themeLabel })
+        label->setColour (juce::Label::textColourId, t.fgMuted);
+
+    logView.setColour (juce::TextEditor::backgroundColourId, t.bgSunken);
+    logView.setColour (juce::TextEditor::textColourId, t.fgMuted);
+
+    refreshConnectionLabel();
+    repaint();
+}
+
 void CompanionView::refreshFromModel()
 {
     if (const auto seed = model.status().seed)
@@ -597,28 +665,34 @@ void CompanionView::paintListBoxItem (int row, juce::Graphics& g, int width, int
 
     const auto& entry = visibleEntries[static_cast<std::size_t> (row)];
 
-    if (selected)
-        g.fillAll (juce::Colour (0xff35405a));
+    const auto& t = lookAndFeel.theme();
 
-    juce::Colour accent = juce::Colours::grey;
-    if (entry.rating == SeedEntry::Rating::keep) accent = juce::Colours::lightgreen;
-    if (entry.rating == SeedEntry::Rating::pass) accent = juce::Colours::indianred;
+    if (selected)
+        g.fillAll (t.accent.withAlpha (0.18f));
+
+    // Rating is a colour AND a letter: no colour-only encoding (DESIGN.md).
+    juce::Colour accent = t.fgFaint;
+    juce::String mark = "-";
+    if (entry.rating == SeedEntry::Rating::keep) { accent = t.affirm; mark = "K"; }
+    if (entry.rating == SeedEntry::Rating::pass) { accent = t.danger; mark = "P"; }
 
     g.setColour (accent);
     g.fillRect (0, 0, 3, height);
+    g.setFont (suite::SuiteLookAndFeel::eyebrowFont());
+    g.drawText (mark, width - 20, 0, 16, height, juce::Justification::centredRight);
 
-    g.setColour (juce::Colours::white);
-    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain)));
-    g.drawText (entry.displayName(), 10, 2, width - 14, height / 2, juce::Justification::centredLeft);
+    g.setColour (t.fg);
+    g.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textSm)));
+    g.drawText (entry.displayName(), 10, 2, width - 34, height / 2, juce::Justification::centredLeft);
 
-    g.setColour (juce::Colours::grey);
-    g.setFont (juce::Font (juce::FontOptions (11.0f)));
+    g.setColour (t.fgMuted);
+    g.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
 
     juce::String detail = entry.summary();
     if (entry.note.isNotEmpty())
         detail += "  -  " + entry.note;
 
-    g.drawText (detail, 10, height / 2, width - 14, height / 2 - 2, juce::Justification::centredLeft);
+    g.drawText (detail, 10, height / 2, width - 34, height / 2 - 2, juce::Justification::centredLeft);
 }
 
 void CompanionView::selectedRowsChanged (int)

@@ -82,6 +82,25 @@ the name; pick by hand if yours differs).
 The library lives at `~/Library/Application Support/RND Companion/seed-library.json`
 on macOS and exports to plain JSON.
 
+## Look and feel
+
+The suite's "paper & ink" language, taken from `@enkerli/ui` tokens
+(`packages/ui/tokens/tokens.css` and `DESIGN.md` in the monorepo) rather than
+re-picked here — warm cream paper, warm ink, a warm-dark counterpart, the Vane
+radii, mono with tabular figures for anything numeric-musical.
+
+Light is the default design target; dark is a first-class variant. **Auto**
+follows the OS preference until you choose, and the choice is saved with the
+plugin state. Controls are 32px with a pointer and 44px on touch, so the same
+layout works on a desktop and under a fingertip; the columns stack below 860px
+for narrow AUv3 panes.
+
+Ratings are never colour alone — each row carries a K/P letter beside its
+colour bar.
+
+Still to come from the suite: library Information Architecture, and the
+Workspace component for modular work.
+
 ## Recording the four audio channels
 
 Not a job for this plugin — the RND presents four USB audio inputs (pre-reverb,
