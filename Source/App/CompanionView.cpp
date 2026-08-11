@@ -161,6 +161,8 @@ CompanionView::CompanionView (CompanionModel& m)
     seedEditor.onReturnKey = [this] { sendSeedFromEditor(); };
     content.addAndMakeVisible (seedEditor);
 
+    // One primary per group: Send is the obvious thing to do with a seed.
+    suite::setButtonRole (sendButton, suite::ButtonRole::primary);
     sendButton.onClick = [this] { sendSeedFromEditor(); };
     content.addAndMakeVisible (sendButton);
 
@@ -193,6 +195,12 @@ CompanionView::CompanionView (CompanionModel& m)
     // Blank until the device reports one: these show what the RND is doing, and
     // an arbitrary default would be a claim we cannot make.
     scaleCombo.setTextWhenNothingSelected ("from device");
+    // These two LOCK the hardware, and a ComboBox answers the scroll wheel by
+    // default -- brushing the trackpad over one would silently change what
+    // every seed produces until the next power cycle.
+    scaleCombo.setScrollWheelEnabled (false);
+    tonicCombo.setScrollWheelEnabled (false);
+
     scaleCombo.onChange = [this]
     {
         if (scaleCombo.getSelectedId() > 0)
@@ -261,6 +269,10 @@ CompanionView::CompanionView (CompanionModel& m)
     libraryList.setTitle ("Seed library");
     content.addAndMakeVisible (libraryList);
 
+    // Keep is the primary of the library group; Remove is the destructive one
+    // and keeps the danger edge as well as sitting apart.
+    suite::setButtonRole (keepButton, suite::ButtonRole::primary);
+    suite::setButtonRole (removeButton, suite::ButtonRole::danger);
     keepButton.onClick = [this] { rateSelected (SeedEntry::Rating::keep); };
     passButton.onClick = [this] { rateSelected (SeedEntry::Rating::pass); };
     sendSelectedButton.onClick = [this] { sendSelected(); };
@@ -682,6 +694,7 @@ void CompanionView::applyTheme()
                        && juce::Desktop::getInstance().isDarkModeActive());
 
     lookAndFeel.setTheme (dark ? suite::Theme::dark() : suite::Theme::light());
+    frame.setResolvedDark (dark);
 
     const auto& t = lookAndFeel.theme();
 

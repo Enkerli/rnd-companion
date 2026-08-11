@@ -64,6 +64,10 @@ private:
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String openInputIdentifier, openOutputIdentifier;
 
+    /// So a slider drag with nothing connected says so once rather than once
+    /// per step. Reset on the next successful send.
+    bool warnedAboutNoOutput = false;
+
     // Incoming SysEx arrives on a MIDI thread; everything else runs on the
     // message thread.
     juce::CriticalSection incomingLock;

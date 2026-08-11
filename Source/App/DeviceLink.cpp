@@ -165,9 +165,17 @@ void DeviceLink::send (const rndcmd::Commands& commands)
 {
     if (midiOutput == nullptr)
     {
-        log ("No MIDI output open.");
+        // Once, not once per step. A slider drag with no device attached was
+        // filling the log with the same line dozens of times.
+        if (! warnedAboutNoOutput)
+        {
+            warnedAboutNoOutput = true;
+            log ("No MIDI output open.");
+        }
         return;
     }
+
+    warnedAboutNoOutput = false;
 
     for (const auto& command : commands)
     {

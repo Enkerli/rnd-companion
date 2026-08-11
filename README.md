@@ -86,11 +86,11 @@ on macOS and exports to plain JSON.
 
 ![RND Companion](Assets/icon.png)
 
-A seed with three broadcast arcs — the thing this companion captures, in the act
-of being sent, since the RND emits its seed unprompted the moment the knob
-turns. Same card, radius, border and ink as the rest of the suite; green
-(`es-pc-2`) was the one unclaimed hue on the suite wheel. Drawn in the
-paper-&-ink grammar by a Claude design pass, 2026-08-11.
+A die — the plainest word for what an RND is — with four ink pips and a fifth at
+the centre in the suite's one unclaimed hue (`es-pc-2` green): the captured
+seed. Bold filled geometry, so it holds together at favicon size, and it sits
+structurally with `pickpcs` and `exquisite-fingerings`. Drawn by a Claude design
+pass, 2026-08-11 (v2 — the first mark was thin and shapeless).
 
 ## The Shared Frame
 
@@ -127,9 +127,10 @@ The suite's "paper & ink" language, taken from `@enkerli/ui` tokens
 re-picked here — warm cream paper, warm ink, a warm-dark counterpart, the Vane
 radii, mono with tabular figures for anything numeric-musical.
 
-Light is the default design target; dark is a first-class variant. **Auto**
-follows the OS preference until you choose, and the choice is saved with the
-plugin state. Controls are 32px with a pointer and 44px on touch, so the same
+Light is the default design target; dark is a first-class variant. The theme
+control is the suite's single **toggle**, whose label names the mode you would
+get — one tap, as everywhere else in the suite. It follows the OS until you tap
+it; after that your choice is saved with the plugin state. Controls are 32px with a pointer and 44px on touch, so the same
 layout works on a desktop and under a fingertip; the columns stack below 860px
 for narrow AUv3 panes.
 

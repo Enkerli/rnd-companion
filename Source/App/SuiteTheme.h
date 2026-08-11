@@ -68,6 +68,29 @@ namespace metrics
 }
 
 //==============================================================================
+/// Button roles, from components.css. Exactly one primary per group -- that is
+/// what gives a row of actions a shape instead of being, as the design pass put
+/// it, identical outlined boxes with no hierarchy.
+enum class ButtonRole
+{
+    normal,    ///< .es-btn
+    primary,   ///< .es-primary -- the one obvious action in its group
+    danger     ///< destructive; keeps the --es-danger edge and sits apart
+};
+
+void setButtonRole (juce::Button&, ButtonRole);
+
+/// Non-ASCII glyphs go through fromUTF8, always. A bare UTF-8 literal reaching
+/// a juce::String trips an assertion on any byte > 127 -- see the project's
+/// CLAUDE.md, which records this biting twice.
+namespace glyph
+{
+    juce::String middot();   ///< U+00B7, the suite's chip separator
+    juce::String sun();      ///< U+2600, "switch to light"
+    juce::String moon();     ///< U+25CF, "switch to dark"
+    juce::String density();  ///< U+2261
+}
+
 class SuiteLookAndFeel : public juce::LookAndFeel_V4
 {
 public:

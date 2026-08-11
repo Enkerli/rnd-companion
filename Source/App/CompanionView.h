@@ -112,7 +112,7 @@ private:
     juce::TextButton sendButton   { "Send" };
     juce::TextButton randomButton { "Random" };
     juce::TextButton readButton   { "Read device" };
-    juce::TextButton captureButton { "Add to library" };
+    juce::TextButton captureButton { "Capture" };
     juce::Label      readCaveat;
     juce::Label      mixCaveat;
 

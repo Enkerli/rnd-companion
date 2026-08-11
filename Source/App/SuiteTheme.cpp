@@ -59,6 +59,31 @@ namespace metrics
     }
 }
 
+namespace
+{
+    const juce::Identifier roleProperty { "suiteButtonRole" };
+}
+
+void setButtonRole (juce::Button& button, ButtonRole role)
+{
+    button.getProperties().set (roleProperty, static_cast<int> (role));
+    button.repaint();
+}
+
+static ButtonRole roleOf (const juce::Button& button)
+{
+    const auto value = button.getProperties().getWithDefault (roleProperty, 0);
+    return static_cast<ButtonRole> (static_cast<int> (value));
+}
+
+namespace glyph
+{
+    juce::String middot()  { return juce::String::fromUTF8 ("\xc2\xb7"); }
+    juce::String sun()     { return juce::String::fromUTF8 ("\xe2\x98\x80"); }
+    juce::String moon()    { return juce::String::fromUTF8 ("\xe2\x97\x8f"); }
+    juce::String density() { return juce::String::fromUTF8 ("\xe2\x89\xa1"); }
+}
+
 //==============================================================================
 SuiteLookAndFeel::SuiteLookAndFeel()
 {
@@ -170,11 +195,30 @@ void SuiteLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
     const float radius = static_cast<float> (metrics::radiusSm);
 
     // components.css .es-btn: bg-raised, border-strong, radius-sm; hover is
-    // bg-sunken. The accent fill there is .es-primary -- reserved for primary
-    // actions, which a density toggle is emphatically not.
+    // bg-sunken. .es-primary is the accent fill -- one per group.
     const bool on = button.getToggleState();
+    const auto role = roleOf (button);
 
-    auto fill = (on || highlighted) ? current.bgSunken : backgroundColour;
+    auto fill = backgroundColour;
+    auto border = current.borderStrong;
+
+    switch (role)
+    {
+        case ButtonRole::primary:
+            fill = highlighted ? current.accent.brighter (0.12f) : current.accent;
+            border = current.accent;
+            break;
+
+        case ButtonRole::danger:
+            fill = highlighted ? current.bgSunken : backgroundColour;
+            border = current.danger;
+            break;
+
+        case ButtonRole::normal:
+            fill = (on || highlighted) ? current.bgSunken : backgroundColour;
+            break;
+    }
+
     if (down)
         fill = fill.overlaidWith (current.fg.withAlpha (0.08f));
 
@@ -182,12 +226,12 @@ void SuiteLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
     g.fillRoundedRectangle (bounds, radius);
 
     // border-strong: this boundary identifies a control, so it is the ≥3:1 one.
-    g.setColour (current.borderStrong);
+    g.setColour (border);
     g.drawRoundedRectangle (bounds, radius, 1.0f);
 
     // Pressed state as a quiet underline rather than a filled block: enough to
     // read at a glance, not enough to compete with the actual content.
-    if (on)
+    if (on && role == ButtonRole::normal)
     {
         g.setColour (current.accent);
         g.fillRoundedRectangle (bounds.getX() + radius, bounds.getBottom() - 3.0f,

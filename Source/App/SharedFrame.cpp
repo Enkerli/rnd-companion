@@ -110,24 +110,19 @@ namespace
 //==============================================================================
 SharedFrame::SharedFrame()
 {
-    // Slot 1 · theme. The web toggle flips light/dark and stores the choice;
-    // "auto" there is the absence of a stored one. Exposing it as a third
-    // option makes the OS-following state reachable again after a choice —
-    // same mechanism, one more door.
-    themeLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    addAndMakeVisible (themeLabel);
-
-    themeCombo.addItem ("Auto", 1);
-    themeCombo.addItem ("Light", 2);
-    themeCombo.addItem ("Dark", 3);
-    themeCombo.setSelectedId (1, juce::dontSendNotification);
-    themeCombo.setTitle ("Theme");
-    themeCombo.onChange = [this]
+    // Slot 1 · theme. One tap, and the label names the mode you would get --
+    // the suite's single ThemeToggle rather than a bespoke dropdown.
+    themeToggle.setTitle ("Theme");
+    themeToggle.onClick = [this]
     {
+        // Explicit light/dark, exactly like theme.js: "auto" there is the
+        // absence of a stored choice, and toggling is how you make one.
+        themeChoice = resolvedDark ? ThemeChoice::light : ThemeChoice::dark;
+
         if (onThemeChange != nullptr)
-            onThemeChange (static_cast<ThemeChoice> (themeCombo.getSelectedId() - 1));
+            onThemeChange (themeChoice);
     };
-    addAndMakeVisible (themeCombo);
+    addAndMakeVisible (themeToggle);
 
     // Slot 2 · MIDI
     midiChip.setTitle ("MIDI devices");
@@ -169,7 +164,20 @@ SharedFrame::~SharedFrame() = default;
 //==============================================================================
 void SharedFrame::setThemeChoice (ThemeChoice choice, juce::NotificationType notify)
 {
-    themeCombo.setSelectedId (static_cast<int> (choice) + 1, notify);
+    themeChoice = choice;
+
+    if (notify != juce::dontSendNotification && onThemeChange != nullptr)
+        onThemeChange (themeChoice);
+}
+
+void SharedFrame::setResolvedDark (bool isDark)
+{
+    resolvedDark = isDark;
+
+    // The label is the destination, not the current state.
+    themeToggle.setButtonText ((isDark ? suite::glyph::sun() : suite::glyph::moon())
+                               + juce::String (isDark ? "  Light" : "  Dark"));
+    themeToggle.setTooltip (isDark ? "Switch to the light theme" : "Switch to the dark theme");
 }
 
 void SharedFrame::setMidiState (const MidiState& state)
@@ -185,9 +193,10 @@ void SharedFrame::refreshMidiChip()
 {
     const int ports = midi.inputs.size() + midi.outputs.size();
 
-    midiChip.setButtonText (midi.connected ? "MIDI - connected"
-                                           : (ports > 0 ? "MIDI - " + juce::String (ports)
-                                                        : "MIDI - none"));
+    // "MIDI · n", as the shared cluster writes it. The separator is U+00B7, so
+    // it goes through fromUTF8 like every other non-ASCII character here.
+    midiChip.setButtonText ("MIDI " + suite::glyph::middot() + " "
+                            + (ports > 0 ? juce::String (ports) : juce::String ("none")));
 
     midiChip.setTooltip (midi.connected
                              ? "Connected. Click to change ports."
@@ -206,7 +215,7 @@ void SharedFrame::showMidiPanel()
 
     auto& box = juce::CallOutBox::launchAsynchronously (
         std::move (panel),
-        getScreenBounds().withPosition (midiChip.getScreenPosition()),
+        midiChip.getScreenBounds(),   // the chip itself: a CallOutBox points at what it is given
         nullptr);
 
     // The box draws its own background, so it needs the theme too.
@@ -216,7 +225,7 @@ void SharedFrame::showMidiPanel()
 void SharedFrame::setDense (bool shouldBeDense, juce::NotificationType notify)
 {
     dense = shouldBeDense;
-    densityButton.setButtonText (dense ? "Compact" : "Comfortable");
+    densityButton.setButtonText (suite::glyph::density() + juce::String (dense ? "  Dense" : "  Cozy"));
     densityButton.setToggleState (dense, juce::dontSendNotification);
 
     if (notify != juce::dontSendNotification && onDensityChange != nullptr)
@@ -230,15 +239,18 @@ void SharedFrame::setLibraryState (bool shown, int count)
     libraryShown = shown;
     libraryCount = count;
 
-    libraryButton.setButtonText ("Library " + juce::String (count));
+    libraryButton.setButtonText ("Library  " + juce::String (count));
     libraryButton.setToggleState (shown, juce::dontSendNotification);
     libraryButton.setTooltip (shown ? "Hide the seed library" : "Show the seed library");
 }
 
 void SharedFrame::setBuildId (const juce::String& id)
 {
-    buildLabel.setText ("build " + id, juce::dontSendNotification);
-    buildLabel.setTooltip ("Which build this is. Quote it when reporting anything odd.");
+    // The cluster shows the id alone at 75% opacity; the word "build" lives in
+    // the accessible name rather than taking width from it.
+    buildLabel.setText (id, juce::dontSendNotification);
+    buildLabel.setTitle ("Build " + id);
+    buildLabel.setTooltip ("Build id. Quote it when reporting anything odd.");
 }
 
 //==============================================================================
@@ -247,8 +259,7 @@ void SharedFrame::lookAndFeelChanged()
     if (auto* lf = dynamic_cast<suite::SuiteLookAndFeel*> (&getLookAndFeel()))
     {
         const auto& t = lf->theme();
-        themeLabel.setColour (juce::Label::textColourId, t.fgMuted);
-        buildLabel.setColour (juce::Label::textColourId, t.fgFaint);
+        buildLabel.setColour (juce::Label::textColourId, t.fgMuted.withAlpha (0.75f));
         buildLabel.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
     }
 }
@@ -286,8 +297,7 @@ void SharedFrame::resized()
     buildLabel.setBounds (area.removeFromRight (juce::jmin (140, area.getWidth() / 4)));
     area.removeFromRight (gap);
 
-    themeLabel.setBounds (area.removeFromLeft (juce::jmin (44, area.getWidth() / 6)));
-    themeCombo.setBounds (area.removeFromLeft (juce::jmin (96, area.getWidth() / 3)).withHeight (h));
+    themeToggle.setBounds (area.removeFromLeft (juce::jmin (104, area.getWidth() / 4)).withHeight (h));
     area.removeFromLeft (gap);
 
     midiChip.setBounds (area.removeFromLeft (juce::jmin (140, area.getWidth() / 3)).withHeight (h));

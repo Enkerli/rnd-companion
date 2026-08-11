@@ -29,9 +29,15 @@ public:
     enum class ThemeChoice { automatic, light, dark };
 
     //==============================================================================
-    // Slot 1 · theme
+    // Slot 1 · theme. The suite has ONE theme control and it is a toggle whose
+    // label names the mode you would GET (global-cluster.js slot 1). The v2
+    // design pass called the Auto/Light/Dark dropdown out by name: theme is one
+    // tap everywhere in the suite, so it is one tap here.
     std::function<void (ThemeChoice)> onThemeChange;
     void setThemeChoice (ThemeChoice, juce::NotificationType = juce::dontSendNotification);
+
+    /// Which theme is actually showing, so the toggle can name the other one.
+    void setResolvedDark (bool);
 
     // Slot 2 · MIDI
     struct MidiState
@@ -74,8 +80,9 @@ private:
     /// refreshes it rather than leaving it saying "none" after a connect.
     juce::Component::SafePointer<juce::Component> openPanel;
 
-    juce::ComboBox   themeCombo;
-    juce::Label      themeLabel { {}, "Theme" };
+    juce::TextButton themeToggle;
+    bool             resolvedDark = false;
+    ThemeChoice      themeChoice { ThemeChoice::automatic };
 
     juce::TextButton midiChip;
     MidiState        midi;
