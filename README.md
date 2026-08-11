@@ -82,6 +82,22 @@ the name; pick by hand if yours differs).
 The library lives at `~/Library/Application Support/RND Companion/seed-library.json`
 on macOS and exports to plain JSON.
 
+## Recording the four audio channels
+
+Not a job for this plugin — the RND presents four USB audio inputs (pre-reverb,
+one per instrument) plus the analog stereo mix, and your host records them.
+What was found in practice:
+
+- **Logic Pro** and **AUM** pick up all four inputs at once, clearly labelled,
+  with no setup.
+- **Bitwig Studio** needs an **aggregate audio device** (RND inputs plus your
+  monitoring output). With that in place each channel is individually
+  selectable and it behaves like the others.
+- **Audio Hijack** works if you take the channels as two stereo pairs (1–2 and
+  3–4) and split them afterwards.
+
+Reverb applies to the analog mix only, so the four USB stems are always dry.
+
 ## What this does not do
 
 It does not reimplement the device's patch generator, so it cannot predict what
