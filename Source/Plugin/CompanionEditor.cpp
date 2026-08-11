@@ -83,8 +83,14 @@ void CompanionEditor::timerCallback()
     // Only when something actually changed. Any cluster update re-renders it,
     // which closes an open popover -- so pushing unconditionally every two
     // seconds meant the MIDI panel shut itself before you could use it.
-    if (pageReady)
-        pushPorts (OnlyIfChanged::yes);
+    if (! pageReady)
+        return;
+
+    // Plugging the RND in after the plugin opened should just work.
+    if (model.autoConnectIfIdle())
+        log ("Connected to " + model.link().outputName());
+
+    pushPorts (OnlyIfChanged::yes);
 }
 
 //==============================================================================
@@ -103,6 +109,11 @@ enkerli::BridgedWebView::EventMap CompanionEditor::makeEvents()
         { "uiReady", [this] (const juce::var&)
             {
                 pageReady = true;
+
+                // Open the RND before the first paint, so the device pickers
+                // show it selected rather than blank.
+                model.autoConnectIfIdle();
+
                 pushTransport();
                 pushPorts();
                 pushStatus();

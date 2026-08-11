@@ -61,6 +61,13 @@ public:
     void sendVolume (int value, bool announce);
     void sendReverb (int value, bool announce);
 
+    /// Opens the RND if nothing is open yet and one is present. This app is
+    /// for one device, so making the user hunt for it in a dropdown is asking
+    /// a question with only one answer. Never steals a port the person chose:
+    /// it only acts when BOTH ends are closed.
+    /// Returns true when it connected something.
+    bool autoConnectIfIdle();
+
     /// Called by whichever transport received it. Message thread only.
     void handleMessage (const rnd::Message&);
 

@@ -107,6 +107,26 @@ void CompanionModel::sendReverb (int value, bool announce)
         log ("Reverb " + juce::String (value) + " (analog mix out only, USB stems stay dry)");
 }
 
+bool CompanionModel::autoConnectIfIdle()
+{
+    if (deviceLink.hasInput() || deviceLink.hasOutput())
+        return false;   // somebody already chose; leave it alone
+
+    const auto named = [] (const juce::Array<juce::MidiDeviceInfo>& devices)
+    {
+        for (const auto& device : devices)
+            if (DeviceLink::looksLikeRnd (device.name))
+                return true;
+
+        return false;
+    };
+
+    if (! named (deviceLink.availableInputs()) && ! named (deviceLink.availableOutputs()))
+        return false;
+
+    return deviceLink.connectToRnd();
+}
+
 //==============================================================================
 void CompanionModel::handleMessage (const rnd::Message& message)
 {
