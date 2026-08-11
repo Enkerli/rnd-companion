@@ -61,7 +61,9 @@ namespace
             for (auto* c : children)
                 addAndMakeVisible (*c);
 
-            setSize (320, 168);
+            // Tall enough for both endpoints AND the two actions. At 168 the
+            // buttons were laid out below the bottom edge -- present, invisible.
+            setSize (320, 214);
         }
 
         void resized() override
@@ -179,9 +181,17 @@ void SharedFrame::showMidiPanel()
 {
     auto panel = std::make_unique<MidiPanel> (midi, onSelectInput, onSelectOutput, onFindDevice, onRescan);
 
-    juce::CallOutBox::launchAsynchronously (std::move (panel),
-                                            getScreenBounds().withPosition (midiChip.getScreenPosition()),
-                                            nullptr);
+    // A CallOutBox's content is not in our component tree, so it would render
+    // with JUCE's default dark LookAndFeel -- a dark popover on paper.
+    panel->setLookAndFeel (&getLookAndFeel());
+
+    auto& box = juce::CallOutBox::launchAsynchronously (
+        std::move (panel),
+        getScreenBounds().withPosition (midiChip.getScreenPosition()),
+        nullptr);
+
+    // The box draws its own background, so it needs the theme too.
+    box.setLookAndFeel (&getLookAndFeel());
 }
 
 void SharedFrame::setDense (bool shouldBeDense, juce::NotificationType notify)

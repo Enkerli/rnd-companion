@@ -93,6 +93,23 @@ juce::Font SuiteLookAndFeel::eyebrowFont()
 
 void SuiteLookAndFeel::applyColours()
 {
+    // LookAndFeel_V4 draws anything we do not override -- callout boxes,
+    // alert windows, resizers -- from its ColourScheme, which defaults to a
+    // dark grey. Left alone it produced a dark popover on paper, with our own
+    // dark ink labels on top of it. Drive the scheme from the theme so the
+    // parts we never touch still belong.
+    setColourScheme ({
+        current.bg,            // windowBackground
+        current.bgRaised,      // widgetBackground
+        current.bgRaised,      // menuBackground
+        current.border,        // outline
+        current.fg,            // defaultText
+        current.bgSunken,      // defaultFill
+        current.fg,            // highlightedText
+        current.accent,        // highlightedFill
+        current.fg             // menuText
+    });
+
     setColour (juce::ResizableWindow::backgroundColourId, current.bg);
     setColour (juce::DocumentWindow::textColourId,        current.fg);
 

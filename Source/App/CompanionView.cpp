@@ -9,8 +9,6 @@ namespace
 {
     constexpr int gap = 10;   // --es-gap
 
-    // --es-ctl-h: 32 with a pointer, 44 under a fingertip.
-    inline int rowHeight() { return suite::metrics::controlHeight(); }
     inline int headerHeight() { return suite::metrics::sectionHeader; }
 
 }
@@ -103,7 +101,7 @@ CompanionView::CompanionView (CompanionModel& m)
     frame.onFindDevice   = [this] { model.link().connectToRnd(); refreshFrameMidiState(); };
     frame.onRescan       = [this] { refreshFrameMidiState(); };
 
-    frame.onDensityChange = [this] (bool) { resized(); repaint(); };
+    frame.onDensityChange = [this] (bool) { relayout(); };
 
     frame.onLibraryToggle = [this] (bool shown)
     {
@@ -115,7 +113,7 @@ CompanionView::CompanionView (CompanionModel& m)
         for (auto* c : libraryParts)
             c->setVisible (shown);
 
-        resized();
+        relayout();
     };
 
     frame.setBuildId (RND_BUILD_STAMP);
@@ -123,6 +121,30 @@ CompanionView::CompanionView (CompanionModel& m)
     content.addAndMakeVisible (frame);
 
     content.addAndMakeVisible (connectionLabel);
+
+    // ── Route ───────────────────────────────────────────────────────────────
+    // Not a Shared Frame slot: the cluster's five are fixed, and which
+    // transport reaches the hardware is this app's own business.
+    transportLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
+    content.addAndMakeVisible (transportLabel);
+
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::direct), 1);
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::host), 2);
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::both), 3);
+    transportCombo.setSelectedId (static_cast<int> (model.transport()) + 1, juce::dontSendNotification);
+    transportCombo.setTitle ("Route");
+    transportCombo.setTooltip ("Direct works in every host and needs no routing. Host uses the "
+                               "plugin's MIDI stream -- proven in AUM, not in Logic or Bitwig.");
+    transportCombo.onChange = [this]
+    {
+        switch (transportCombo.getSelectedId())
+        {
+            case 2:  model.setTransport (CompanionModel::Transport::host); break;
+            case 3:  model.setTransport (CompanionModel::Transport::both); break;
+            default: model.setTransport (CompanionModel::Transport::direct); break;
+        }
+    };
+    content.addAndMakeVisible (transportCombo);
 
     // ── Device ──────────────────────────────────────────────────────────────
     content.addAndMakeVisible (deviceHeading);
@@ -372,6 +394,24 @@ int CompanionView::naturalContentHeight (int width) const
         return gap * 4 + ports + gap * 2 + juce::jmax (device, lib) + gap + log;
 
     return gap * 4 + ports + gap * 2 + device + gap + lib + gap + log;
+}
+
+int CompanionView::rowHeight() const
+{
+    // --es-ctl-h: 32 with a pointer, 44 under a fingertip, less when compact.
+    // Reading the frame's density here is what makes the toggle move the whole
+    // surface rather than only the cluster that carries it.
+    return suite::metrics::controlHeight (frame.isDense());
+}
+
+void CompanionView::relayout()
+{
+    // Toggling a child's visibility does not change the content's SIZE, so
+    // Component never calls resized() and the layout silently keeps its old
+    // geometry -- which is how showing the library again left it invisible.
+    resized();
+    layoutContent (content.getLocalBounds());
+    repaint();
 }
 
 void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)

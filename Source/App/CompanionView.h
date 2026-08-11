@@ -39,6 +39,8 @@ private:
     void refreshLibrary();
 
     void refreshFromModel();
+    int  rowHeight() const;
+    void relayout();
     void markMixTouched();
     void darkModeSettingChanged() override;
     void applyTheme();
