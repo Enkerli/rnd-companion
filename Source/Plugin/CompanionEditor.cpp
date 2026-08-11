@@ -12,7 +12,9 @@ CompanionEditor::CompanionEditor (CompanionProcessor& p)
     // broken. The view stacks its columns below 860px.
     setResizable (true, true);
     setResizeLimits (420, 460, 4000, 3000);
-    setSize (1040, 720);
+    // Tall enough that the wide layout fits without the viewport scrolling;
+    // below this it scrolls rather than cropping.
+    setSize (1040, 780);
 }
 
 void CompanionEditor::resized()

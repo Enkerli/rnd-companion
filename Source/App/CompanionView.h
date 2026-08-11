@@ -17,6 +17,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /// Called by the scrolled content. Public so the nested component can
+    /// forward to them; not part of the class's outward interface.
+    void layoutContent (juce::Rectangle<int> bounds);
+    void paintContent (juce::Graphics&);
+
 private:
     // ListBoxModel
     int getNumRows() override;
@@ -46,8 +51,25 @@ private:
 
     std::optional<std::uint32_t> selectedSeed() const;
 
+    /// Everything lives inside a viewport. A host may hand an AUv3 a pane far
+    /// shorter than the controls need -- without this the overflow simply gets
+    /// laid out at zero or negative height and disappears, which is how the
+    /// Live section went missing in a narrow window.
+    struct Content : juce::Component
+    {
+        explicit Content (CompanionView& o) : owner (o) {}
+        void resized() override { owner.layoutContent (getLocalBounds()); }
+        void paint (juce::Graphics& g) override { owner.paintContent (g); }
+        CompanionView& owner;
+    };
+
+    int naturalContentHeight (int width) const;
+
     //==============================================================================
     CompanionModel& model;
+
+    juce::Viewport viewport;
+    Content        content { *this };
 
     juce::Label    transportLabel { {}, "Route" };
     juce::ComboBox transportCombo;

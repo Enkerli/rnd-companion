@@ -18,10 +18,14 @@ CompanionView::CompanionView (CompanionModel& m)
 {
     setLookAndFeel (&lookAndFeel);
 
+    viewport.setViewedComponent (&content, false);
+    viewport.setScrollBarsShown (true, false);
+    juce::Component::addAndMakeVisible (viewport);
+
     // Light is the suite's default design target; dark is a first-class
     // variant. "Auto" follows the OS until the person chooses -- DESIGN.md.
     themeLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    addAndMakeVisible (themeLabel);
+    content.addAndMakeVisible (themeLabel);
 
     themeCombo.addItem ("Auto", 1);
     themeCombo.addItem ("Light", 2);
@@ -32,14 +36,15 @@ CompanionView::CompanionView (CompanionModel& m)
         model.setThemeMode (static_cast<CompanionModel::ThemeMode> (themeCombo.getSelectedId() - 1));
         applyTheme();
     };
-    addAndMakeVisible (themeCombo);
+    content.addAndMakeVisible (themeCombo);
 
     juce::Desktop::getInstance().addDarkModeSettingListener (this);
 
     // ── Ports ───────────────────────────────────────────────────────────────
-    addAndMakeVisible (portsHeading);
+    content.addAndMakeVisible (portsHeading);
 
     inputCombo.setTextWhenNoChoicesAvailable ("No MIDI inputs");
+    inputCombo.setTextWhenNothingSelected ("MIDI in");
     inputCombo.onChange = [this]
     {
         const auto identifier = inputCombo.getSelectedId() > 0
@@ -48,9 +53,10 @@ CompanionView::CompanionView (CompanionModel& m)
         if (identifier.isNotEmpty())
             model.link().openInput (identifier);
     };
-    addAndMakeVisible (inputCombo);
+    content.addAndMakeVisible (inputCombo);
 
     outputCombo.setTextWhenNoChoicesAvailable ("No MIDI outputs");
+    outputCombo.setTextWhenNothingSelected ("MIDI out");
     outputCombo.onChange = [this]
     {
         const auto identifier = outputCombo.getSelectedId() > 0
@@ -59,22 +65,22 @@ CompanionView::CompanionView (CompanionModel& m)
         if (identifier.isNotEmpty())
             model.link().openOutput (identifier);
     };
-    addAndMakeVisible (outputCombo);
+    content.addAndMakeVisible (outputCombo);
 
     rescanButton.onClick = [this] { refreshPortLists(); };
-    addAndMakeVisible (rescanButton);
+    content.addAndMakeVisible (rescanButton);
 
     autoConnectButton.onClick = [this]
     {
         model.link().connectToRnd();
         refreshPortLists();
     };
-    addAndMakeVisible (autoConnectButton);
+    content.addAndMakeVisible (autoConnectButton);
 
-    addAndMakeVisible (connectionLabel);
+    content.addAndMakeVisible (connectionLabel);
 
     transportLabel.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    addAndMakeVisible (transportLabel);
+    content.addAndMakeVisible (transportLabel);
 
     transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::direct), 1);
     transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::host), 2);
@@ -91,76 +97,79 @@ CompanionView::CompanionView (CompanionModel& m)
             default: model.setTransport (CompanionModel::Transport::direct); break;
         }
     };
-    addAndMakeVisible (transportCombo);
+    content.addAndMakeVisible (transportCombo);
 
     // ── Device ──────────────────────────────────────────────────────────────
-    addAndMakeVisible (deviceHeading);
+    content.addAndMakeVisible (deviceHeading);
 
     // Mono with tabular figures for anything numeric-musical -- DESIGN.md.
     seedDisplay.setFont (suite::SuiteLookAndFeel::monoFont (30.0f, true));
     seedDisplay.setText ("--", juce::dontSendNotification);
-    addAndMakeVisible (seedDisplay);
+    content.addAndMakeVisible (seedDisplay);
 
     statusDisplay.setJustificationType (juce::Justification::topLeft);
-    addAndMakeVisible (statusDisplay);
+    content.addAndMakeVisible (statusDisplay);
 
-    seedEditor.setTextToShowWhenEmpty ("0x00000000 or a decimal number", lookAndFeel.theme().fgFaint);
     seedEditor.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textSm) + 1.0f));
     seedEditor.onReturnKey = [this] { sendSeedFromEditor(); };
-    addAndMakeVisible (seedEditor);
+    content.addAndMakeVisible (seedEditor);
 
     sendButton.onClick = [this] { sendSeedFromEditor(); };
-    addAndMakeVisible (sendButton);
+    content.addAndMakeVisible (sendButton);
 
     randomButton.onClick = [this] { sendRandomSeed(); };
-    addAndMakeVisible (randomButton);
+    content.addAndMakeVisible (randomButton);
 
     readButton.onClick = [this] { model.requestStatusDump(); };
-    addAndMakeVisible (readButton);
+    content.addAndMakeVisible (readButton);
 
     captureButton.onClick = [this] { captureCurrentSeed(); };
-    addAndMakeVisible (captureButton);
+    content.addAndMakeVisible (captureButton);
 
     readCaveat.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
     readCaveat.setText ("Reading mutes the device briefly. Seeds arrive on their own when you turn the knob.",
                         juce::dontSendNotification);
-    addAndMakeVisible (readCaveat);
+    content.addAndMakeVisible (readCaveat);
 
     // ── Live controls ───────────────────────────────────────────────────────
-    addAndMakeVisible (liveHeading);
+    content.addAndMakeVisible (liveHeading);
 
     for (auto* label : { &scaleLabel, &tonicLabel, &volumeLabel, &reverbLabel })
     {
         label->setFont (suite::SuiteLookAndFeel::eyebrowFont());
-        addAndMakeVisible (*label);
+        content.addAndMakeVisible (*label);
     }
 
     for (int i = 0; i < rnd::numScales; ++i)
         scaleCombo.addItem (juce::String (rnd::scaleName (i)), i + 1);
 
+    // Blank until the device reports one: these show what the RND is doing, and
+    // an arbitrary default would be a claim we cannot make.
+    scaleCombo.setTextWhenNothingSelected ("from device");
     scaleCombo.onChange = [this]
     {
         if (scaleCombo.getSelectedId() > 0)
             model.sendScale (scaleCombo.getSelectedId() - 1);
     };
-    addAndMakeVisible (scaleCombo);
+    content.addAndMakeVisible (scaleCombo);
 
     for (int i = 0; i < rnd::numTonics; ++i)
         tonicCombo.addItem (juce::String (rnd::tonicName (i)), i + 1);
 
+    tonicCombo.setTextWhenNothingSelected ("--");
     tonicCombo.onChange = [this]
     {
         if (tonicCombo.getSelectedId() > 0)
             model.sendTonic (tonicCombo.getSelectedId() - 1);
     };
-    addAndMakeVisible (tonicCombo);
+    content.addAndMakeVisible (tonicCombo);
 
     volumeSlider.setRange (0.0, 127.0, 1.0);
     volumeSlider.setValue (100.0, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight() - 6);
     volumeSlider.onValueChange = [this] { model.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
     volumeSlider.onDragEnd     = [this] { appendLog ("Volume " + juce::String ((int) volumeSlider.getValue())); };
-    addAndMakeVisible (volumeSlider);
+    content.addAndMakeVisible (volumeSlider);
 
     reverbSlider.setRange (0.0, 127.0, 1.0);
     reverbSlider.setValue (40.0, juce::dontSendNotification);
@@ -168,26 +177,26 @@ CompanionView::CompanionView (CompanionModel& m)
     reverbSlider.onValueChange = [this] { model.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
     reverbSlider.onDragEnd     = [this] { appendLog ("Reverb " + juce::String ((int) reverbSlider.getValue())
                                                      + " (analog mix out only, USB stems stay dry)"); };
-    addAndMakeVisible (reverbSlider);
+    content.addAndMakeVisible (reverbSlider);
 
     lockWarning.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
     lockWarning.setText ("Scale and tonic lock on the hardware and change what a seed produces. Power-cycle to clear.",
                          juce::dontSendNotification);
-    addAndMakeVisible (lockWarning);
+    content.addAndMakeVisible (lockWarning);
 
     // ── Library ─────────────────────────────────────────────────────────────
-    addAndMakeVisible (libraryHeading);
+    content.addAndMakeVisible (libraryHeading);
 
     for (auto* toggle : { &showUnrated, &showKeep, &showPass })
     {
         toggle->setToggleState (true, juce::dontSendNotification);
         toggle->onClick = [this] { refreshLibrary(); };
-        addAndMakeVisible (*toggle);
+        content.addAndMakeVisible (*toggle);
     }
     showPass.setToggleState (false, juce::dontSendNotification);
 
     libraryList.setRowHeight (juce::jmax (44, suite::metrics::controlHeight() + 14));
-    addAndMakeVisible (libraryList);
+    content.addAndMakeVisible (libraryList);
 
     keepButton.onClick = [this] { rateSelected (SeedEntry::Rating::keep); };
     passButton.onClick = [this] { rateSelected (SeedEntry::Rating::pass); };
@@ -195,15 +204,14 @@ CompanionView::CompanionView (CompanionModel& m)
     removeButton.onClick = [this] { removeSelected(); };
 
     for (auto* button : { &keepButton, &passButton, &sendSelectedButton, &removeButton })
-        addAndMakeVisible (*button);
+        content.addAndMakeVisible (*button);
 
-    noteEditor.setTextToShowWhenEmpty ("Note on the selected seed", lookAndFeel.theme().fgFaint);
     noteEditor.onFocusLost = [this]
     {
         if (const auto seed = selectedSeed())
             model.library().setNote (*seed, noteEditor.getText());
     };
-    addAndMakeVisible (noteEditor);
+    content.addAndMakeVisible (noteEditor);
 
     exportButton.onClick = [this]
     {
@@ -216,7 +224,7 @@ CompanionView::CompanionView (CompanionModel& m)
         enkerli::exportBytes (*this, SeedLibrary::timestampedExportName(), bytes);
         appendLog ("Exporting " + SeedLibrary::timestampedExportName());
     };
-    addAndMakeVisible (exportButton);
+    content.addAndMakeVisible (exportButton);
 
     importButton.onClick = [this]
     {
@@ -231,7 +239,7 @@ CompanionView::CompanionView (CompanionModel& m)
                                                 : "Could not read " + name);
                              });
     };
-    addAndMakeVisible (importButton);
+    content.addAndMakeVisible (importButton);
 
     // ── Log ─────────────────────────────────────────────────────────────────
     logView.setMultiLine (true);
@@ -239,7 +247,7 @@ CompanionView::CompanionView (CompanionModel& m)
     logView.setScrollbarsShown (true);
     logView.setCaretVisible (false);
     logView.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
-    addAndMakeVisible (logView);
+    content.addAndMakeVisible (logView);
 
     // ── Wiring ──────────────────────────────────────────────────────────────
     model.onStatusChanged = [this] { refreshFromModel(); };
@@ -273,6 +281,11 @@ CompanionView::~CompanionView()
 //==============================================================================
 void CompanionView::paint (juce::Graphics& g)
 {
+    g.fillAll (lookAndFeel.theme().bg);
+}
+
+void CompanionView::paintContent (juce::Graphics& g)
+{
     const auto& t = lookAndFeel.theme();
     g.fillAll (t.bg);
 
@@ -289,11 +302,40 @@ void CompanionView::paint (juce::Graphics& g)
 
 void CompanionView::resized()
 {
+    viewport.setBounds (getLocalBounds());
+
+    const int width = viewport.getMaximumVisibleWidth();
+    content.setSize (width, juce::jmax (naturalContentHeight (width),
+                                        viewport.getMaximumVisibleHeight()));
+}
+
+/// Height the controls actually need. Below this the viewport scrolls rather
+/// than silently cropping.
+int CompanionView::naturalContentHeight (int width) const
+{
+    const int row = rowHeight();
+    const int header = headerHeight();
+
+    // ports block, then the device+live column, then library, then log
+    const int ports  = header + row + gap / 2 + row;
+    const int device = header + 42 + 76 + gap + row + gap + row + row
+                     + gap + header + row + gap + row + gap / 2 + row + row * 2;
+    const int lib    = header + row + gap + 200 + gap + row + gap + row;
+    const int log    = 80;
+
+    if (width >= 860)
+        return gap * 4 + ports + gap * 2 + juce::jmax (device, lib) + gap + log;
+
+    return gap * 4 + ports + gap * 2 + device + gap + lib + gap + log;
+}
+
+void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
+{
     // Responsive on purpose. An AUv3 is presented at whatever size the host's
     // pane happens to be, not at the size we asked for -- the transport
     // selector used to sit ~700px along a single row, which put it off-screen
     // in AUM entirely and read as "the dropdown doesn't work".
-    auto area = getLocalBounds().reduced (gap * 2);
+    auto area = fullBounds.reduced (gap * 2);
 
     const bool narrow = area.getWidth() < 860;
 
@@ -316,8 +358,15 @@ void CompanionView::resized()
     area.removeFromTop (gap / 2);
     auto transportRow = area.removeFromTop (rowHeight());
     transportLabel.setBounds (transportRow.removeFromLeft (44));
-    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 2)));
+    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 3)));
     transportRow.removeFromLeft (gap);
+
+    // Theme sits at the far right of the same row: a global setting, kept away
+    // from the device controls it does not affect.
+    themeCombo.setBounds (transportRow.removeFromRight (juce::jmin (100, transportRow.getWidth() / 3)));
+    themeLabel.setBounds (transportRow.removeFromRight (juce::jmin (48, transportRow.getWidth() / 3)));
+    transportRow.removeFromRight (gap);
+
     connectionLabel.setBounds (transportRow);
 
     area.removeFromTop (gap * 2);
@@ -327,9 +376,16 @@ void CompanionView::resized()
 
     if (narrow)
     {
-        right = area.removeFromBottom (juce::jmax (150, area.getHeight() / 2));
-        area.removeFromBottom (gap);
-        left = area;
+        // The device column gets what it needs; the library takes the rest.
+        // Splitting down the middle is what made Live disappear.
+        const int deviceHeight = headerHeight() + 42 + 76 + gap + rowHeight() + gap
+                               + rowHeight() + rowHeight() + gap + headerHeight()
+                               + rowHeight() + gap + rowHeight() + gap / 2
+                               + rowHeight() + rowHeight() * 2;
+
+        left = area.removeFromTop (juce::jmin (deviceHeight, area.getHeight()));
+        area.removeFromTop (gap);
+        right = area;
     }
     else
     {
@@ -563,6 +619,19 @@ void CompanionView::applyTheme()
 
     logView.setColour (juce::TextEditor::backgroundColourId, t.bgSunken);
     logView.setColour (juce::TextEditor::textColourId, t.fgMuted);
+
+    // Placeholder colours are baked in at the call, so they have to be re-set
+    // per theme -- otherwise light's pale ink stays put and glares on dark.
+    // fg-muted rather than fg-faint: DESIGN.md reserves faint for disabled
+    // controls, and a hint is still something you are meant to read.
+    seedEditor.setTextToShowWhenEmpty ("0x00000000 or a decimal number", t.fgMuted);
+    noteEditor.setTextToShowWhenEmpty ("Note on the selected seed", t.fgMuted);
+
+    // Components cache colours out of the LookAndFeel when it is *assigned*, so
+    // mutating the same object leaves them on the old palette -- which is how
+    // the slider value boxes ended up drawing near-invisible text. Push the
+    // change through the tree explicitly.
+    sendLookAndFeelChange();
 
     refreshConnectionLabel();
     repaint();
