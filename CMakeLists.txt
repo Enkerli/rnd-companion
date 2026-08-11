@@ -181,8 +181,10 @@ if(NPXCMD)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${WEBUI_BUILD}"
         COMMAND "${CMAKE_COMMAND}" -DOUT=${WEBUI_BUILD}/build-tag.js
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/write-build-tag.cmake"
+        # --format=iife explicitly: a module bundle served through the resource
+        # provider stays silently blank in WKWebView on iPadOS.
         COMMAND "${NPXCMD}" esbuild "${WEBUI_DIR}/main.js"
-                    --bundle --conditions=source
+                    --bundle --format=iife --conditions=source
                     "--inject:${WEBUI_BUILD}/build-tag.js"
                     --loader:.css=text --loader:.svg=dataurl
                     "--define:process.env.NODE_ENV=\"production\"" --minify

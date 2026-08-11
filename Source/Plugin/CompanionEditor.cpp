@@ -198,15 +198,23 @@ enkerli::BridgedWebView::EventMap CompanionEditor::makeEvents()
             } },
         { "importLibrary", [this] (const juce::var&)
             {
+                // The picker outlives nothing in particular: close the plugin
+                // window while it is open and the callback lands on a dead
+                // editor. SafePointer is the documented guard (TESTING.md).
+                juce::Component::SafePointer<CompanionEditor> safe (this);
+
                 enkerli::importFile (*this, "*.json",
-                                     [this] (const juce::String& name, const juce::MemoryBlock& bytes)
+                                     [safe] (const juce::String& name, const juce::MemoryBlock& bytes)
                                      {
+                                         if (safe == nullptr)
+                                             return;
+
                                          const juce::String text (juce::CharPointer_UTF8 (
                                              static_cast<const char*> (bytes.getData())), bytes.getSize());
 
-                                         log (model.library().importJsonString (text)
-                                                  ? "Imported " + name
-                                                  : "Could not read " + name);
+                                         safe->log (safe->model.library().importJsonString (text)
+                                                        ? "Imported " + name
+                                                        : "Could not read " + name);
                                      });
             } },
 
