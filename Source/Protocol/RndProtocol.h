@@ -97,6 +97,21 @@ std::optional<Message> parseSysex (const std::uint8_t* data, std::size_t size);
 
 std::optional<Message> parseSysex (const std::vector<std::uint8_t>& bytes);
 
+/// True when a frame carries the RND manufacturer tag, whatever follows it.
+///
+/// This is the difference between "someone else's SysEx" and "our SysEx,
+/// damaged" -- a distinction worth drawing carefully, because a plugin host
+/// that delivers another vendor's frame intact has proved it passes SysEx,
+/// while one that delivers ours broken has proved the opposite. Accepts the
+/// frame with or without its F0/F7 wrapper, as parseSysex does.
+bool hasManufacturerTag (const std::uint8_t* data, std::size_t size);
+
+bool hasManufacturerTag (const std::vector<std::uint8_t>& bytes);
+
+/// A human label for a frame that is not ours: "universal real-time",
+/// "universal non-real-time", or "manufacturer 0x41". Empty if it is ours.
+std::string describeForeignSysex (const std::uint8_t* data, std::size_t size);
+
 // ── Encoded messages (host → device) ────────────────────────────────────────
 
 /// Loads a seed on the device.

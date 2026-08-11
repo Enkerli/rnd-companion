@@ -214,6 +214,59 @@ static void testParsingRejectsJunk()
     CHECK (rnd::parseSysex (bare).has_value());
 }
 
+static void testForeignVersusDamaged()
+{
+    // Real frames Logic Pro delivered to the probe on an instrument track
+    // (2026-08-10). Both are well-formed universal SysEx of Logic's own; the
+    // point is that "not an RND frame" must never be read as "damaged", or the
+    // probe reports a host that passes SysEx perfectly as one that mangles it.
+    const std::vector<std::uint8_t> logicMasterTuning { 0x7F, 0x00, 0x04, 0x03, 0x00, 0x40 };
+
+    std::vector<std::uint8_t> logicBulkTuning { 0x7E, 0x7F, 0x08, 0x01, 0x00 };
+    for (char c : std::string ("Logic Tuning    "))
+        logicBulkTuning.push_back (static_cast<std::uint8_t> (c));
+    for (int note = 0; note < 128; ++note)
+    {
+        logicBulkTuning.push_back (static_cast<std::uint8_t> (note));
+        logicBulkTuning.push_back (0x00);
+        logicBulkTuning.push_back (0x00);
+    }
+    logicBulkTuning.push_back (0x37);
+
+    const std::vector<const std::vector<std::uint8_t>*> logicFrames { &logicMasterTuning, &logicBulkTuning };
+
+    for (const auto* frame : logicFrames)
+    {
+        CHECK (! rnd::hasManufacturerTag (*frame));
+        CHECK (rnd::parseSysex (*frame) == std::nullopt);
+        CHECK (! rnd::describeForeignSysex (frame->data(), frame->size()).empty());
+    }
+
+    CHECK (rnd::describeForeignSysex (logicMasterTuning.data(), logicMasterTuning.size())
+           == "universal real-time SysEx");
+    CHECK (rnd::describeForeignSysex (logicBulkTuning.data(), logicBulkTuning.size())
+           == "universal non-real-time SysEx");
+
+    // Our frames are recognised as ours whether or not they parse, and with or
+    // without the F0/F7 wrapper.
+    CHECK (rnd::hasManufacturerTag (capturedSeedFrame));
+    CHECK (rnd::hasManufacturerTag (std::vector<std::uint8_t> (capturedSeedFrame.begin() + 1,
+                                                               capturedSeedFrame.end() - 1)));
+    CHECK (rnd::describeForeignSysex (capturedSeedFrame.data(), capturedSeedFrame.size()).empty());
+
+    // Our tag, truncated payload: damaged, not foreign. This is the one the
+    // probe must shout about.
+    const std::vector<std::uint8_t> ourFrameTruncated { 0xF0, 0x6F, 0x62, 0x78, 0x10, 0x67, 0xF7 };
+    CHECK (rnd::hasManufacturerTag (ourFrameTruncated));
+    CHECK (rnd::parseSysex (ourFrameTruncated) == std::nullopt);
+
+    // Another vendor's frame, and degenerate input.
+    CHECK (! rnd::hasManufacturerTag (std::vector<std::uint8_t> { 0xF0, 0x43, 0x10, 0x4C, 0xF7 }));
+    CHECK (rnd::describeForeignSysex (nullptr, 0) == "empty SysEx");
+    CHECK (! rnd::hasManufacturerTag (nullptr, 0));
+    CHECK (! rnd::hasManufacturerTag (std::vector<std::uint8_t> { 0xF0, 0x6F }));
+}
+
 static void testControlLayer()
 {
     // The band midpoints follow floor(3.2 + 6.4 * index) across the table.
@@ -378,6 +431,7 @@ int main()
     testEncoding();
     testParsingCapturedFrames();
     testParsingRejectsJunk();
+    testForeignVersusDamaged();
     testControlLayer();
     testStatusAccumulation();
     testHardwareCapture();

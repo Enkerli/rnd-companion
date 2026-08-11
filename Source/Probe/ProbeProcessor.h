@@ -68,9 +68,14 @@ public:
     /// only frames carrying one of our test seeds do.
     int testSeedsReceived() const { return testSeedCount.load(); }
 
-    /// Frames that arrived but did not parse: the signature of a host that
-    /// truncates or rewrites SysEx rather than dropping it outright.
-    int undecodableReceived() const { return undecodableCount.load(); }
+    /// Frames carrying our tag that would not parse: the signature of a host
+    /// that truncates or rewrites SysEx rather than dropping it outright.
+    int damagedReceived() const { return damagedCount.load(); }
+
+    /// Well-formed SysEx belonging to somebody else -- Logic's tuning dumps,
+    /// say. Not our data, but positive evidence: a host that hands over a
+    /// 400-byte frame with its checksum intact is not stripping SysEx.
+    int foreignReceived() const { return foreignCount.load(); }
 
     /// True once processBlock has run at all -- distinguishes "the host never
     /// calls us" from "the host calls us but drops SysEx".
@@ -82,7 +87,8 @@ public:
     /// very thing it exists to measure.
     enum class Kind
     {
-        undecodable,
+        damaged,        ///< Carries our tag but will not parse. The bad case.
+        foreign,        ///< Valid SysEx from someone else. Proof the host passes SysEx.
         seed,
         dumpBegin,
         globals,
@@ -92,9 +98,10 @@ public:
     struct ReceivedFrame
     {
         std::vector<std::uint8_t> bytes;
-        Kind                      kind { Kind::undecodable };
+        Kind                      kind { Kind::damaged };
         std::uint32_t             seed {};
         bool                      matchesATestSeed {};
+        std::string               foreignLabel;
     };
 
     static const char* describe (Kind);
@@ -105,7 +112,7 @@ public:
 private:
     std::atomic<bool> sendRequested { false };
     std::atomic<int>  sentCount { 0 }, receivedCount { 0 }, blockCount { 0 };
-    std::atomic<int>  testSeedCount { 0 }, undecodableCount { 0 };
+    std::atomic<int>  testSeedCount { 0 }, damagedCount { 0 }, foreignCount { 0 };
 
     juce::CriticalSection          receivedLock;
     std::vector<ReceivedFrame>     received;

@@ -129,18 +129,29 @@ void ProbeEditor::timerCallback()
     const int sent = probe.framesSent();
     const int received = probe.framesReceived();
     const int ours = probe.testSeedsReceived();
-    const int broken = probe.undecodableReceived();
+    const int damaged = probe.damagedReceived();
+    const int foreign = probe.foreignReceived();
 
     outCounters.setText ("Sent " + juce::String (sent) + " test frames", juce::dontSendNotification);
     inCounters.setText ("Received " + juce::String (received) + " frames: "
                         + juce::String (ours) + " of ours, "
-                        + juce::String (broken) + " unparseable",
+                        + juce::String (foreign) + " other SysEx, "
+                        + juce::String (damaged) + " damaged",
                         juce::dontSendNotification);
 
+    // Order matters. Damage outranks everything -- a host that rewrites our
+    // frames is disqualified no matter what else it delivers. Foreign SysEx is
+    // genuine positive evidence and must never be reported as a failure.
     if (! probe.isBeingProcessed())
     {
         verdict.setColour (juce::Label::textColourId, juce::Colours::orange);
         verdict.setText ("Host is not calling processBlock -- start the transport or arm the track.",
+                         juce::dontSendNotification);
+    }
+    else if (damaged > 0)
+    {
+        verdict.setColour (juce::Label::textColourId, juce::Colours::orangered);
+        verdict.setText ("This host DAMAGES RND SysEx: " + juce::String (damaged) + " of our frames arrived broken.",
                          juce::dontSendNotification);
     }
     else if (ours > 0)
@@ -149,22 +160,22 @@ void ProbeEditor::timerCallback()
         verdict.setText ("SysEx IN works: " + juce::String (ours) + " test frames arrived intact.",
                          juce::dontSendNotification);
     }
-    else if (broken > 0)
+    else if (foreign > 0)
     {
-        verdict.setColour (juce::Label::textColourId, juce::Colours::orangered);
-        verdict.setText ("Frames arrive but do not parse -- this host rewrites SysEx.",
+        verdict.setColour (juce::Label::textColourId, juce::Colours::yellowgreen);
+        verdict.setText ("SysEx reaches this plugin (" + juce::String (foreign)
+                         + " other frames, intact). Send an RND frame in to confirm.",
                          juce::dontSendNotification);
     }
     else if (received > 0)
     {
         verdict.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
-        verdict.setText ("Receiving RND traffic, but none of our test seeds yet.",
-                         juce::dontSendNotification);
+        verdict.setText ("Receiving traffic, but no SysEx yet.", juce::dontSendNotification);
     }
     else
     {
         verdict.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
-        verdict.setText ("Processing. Nothing received yet.", juce::dontSendNotification);
+        verdict.setText ("No SysEx has reached this plugin yet.", juce::dontSendNotification);
     }
 
     for (const auto& frame : probe.takeReceived())
@@ -172,8 +183,10 @@ void ProbeEditor::timerCallback()
         // An RND on the same port broadcasts its status continuously, so
         // logging everything buries the two lines that matter. Test seeds and
         // parse failures always show; the rest only on request.
+        // Foreign frames are rare and are evidence, so they always show.
         const bool interesting = frame.matchesATestSeed
-                              || frame.kind == ProbeProcessor::Kind::undecodable;
+                              || frame.kind == ProbeProcessor::Kind::damaged
+                              || frame.kind == ProbeProcessor::Kind::foreign;
 
         if (! interesting && ! logEverything.getToggleState())
             continue;
@@ -193,6 +206,10 @@ void ProbeEditor::timerCallback()
             line << " " << juce::String (rnd::formatSeed (frame.seed));
             if (frame.matchesATestSeed)
                 line << "  <-- one of ours, intact";
+        }
+        else if (frame.kind == ProbeProcessor::Kind::foreign && ! frame.foreignLabel.empty())
+        {
+            line << ": " << juce::String (frame.foreignLabel);
         }
 
         appendLine (line);

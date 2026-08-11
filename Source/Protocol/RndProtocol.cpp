@@ -179,6 +179,63 @@ std::optional<Message> parseSysex (const std::vector<std::uint8_t>& bytes)
     return parseSysex (bytes.data(), bytes.size());
 }
 
+namespace
+{
+    /// Skips an optional leading F0 and reports what is left.
+    const std::uint8_t* bodyOf (const std::uint8_t* data, std::size_t size, std::size_t& bodySize)
+    {
+        if (data == nullptr || size == 0)
+        {
+            bodySize = 0;
+            return nullptr;
+        }
+
+        const std::size_t offset = (data[0] == sysexBegin) ? 1u : 0u;
+        bodySize = size - offset;
+        return data + offset;
+    }
+}
+
+bool hasManufacturerTag (const std::uint8_t* data, std::size_t size)
+{
+    std::size_t bodySize = 0;
+    const auto* body = bodyOf (data, size, bodySize);
+
+    if (body == nullptr || bodySize < manufacturerTag.size())
+        return false;
+
+    return std::equal (manufacturerTag.begin(), manufacturerTag.end(), body);
+}
+
+bool hasManufacturerTag (const std::vector<std::uint8_t>& bytes)
+{
+    return hasManufacturerTag (bytes.data(), bytes.size());
+}
+
+std::string describeForeignSysex (const std::uint8_t* data, std::size_t size)
+{
+    if (hasManufacturerTag (data, size))
+        return {};
+
+    std::size_t bodySize = 0;
+    const auto* body = bodyOf (data, size, bodySize);
+
+    if (body == nullptr || bodySize == 0)
+        return "empty SysEx";
+
+    switch (body[0])
+    {
+        case 0x7E: return "universal non-real-time SysEx";
+        case 0x7F: return "universal real-time SysEx";
+        case 0x7D: return "non-commercial SysEx";
+        default: break;
+    }
+
+    char buffer[32] {};
+    std::snprintf (buffer, sizeof (buffer), "manufacturer 0x%02X SysEx", body[0]);
+    return std::string (buffer);
+}
+
 // ── Encoding ────────────────────────────────────────────────────────────────
 
 static std::vector<std::uint8_t> frame (Command command,

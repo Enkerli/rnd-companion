@@ -62,9 +62,20 @@ void ProbeProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::MidiBu
             else if (std::get_if<rnd::TrackEngineMessage> (&*parsed) != nullptr)
                 frame.kind = Kind::trackEngine;
         }
+        else if (rnd::hasManufacturerTag (frame.bytes))
+        {
+            // Our tag, but the contents did not survive. This is the finding
+            // the probe exists to catch.
+            frame.kind = Kind::damaged;
+            damagedCount.fetch_add (1);
+        }
         else
         {
-            undecodableCount.fetch_add (1);
+            // Somebody else's SysEx, arriving whole. Not what we asked for, but
+            // it means the path is open.
+            frame.kind = Kind::foreign;
+            frame.foreignLabel = rnd::describeForeignSysex (frame.bytes.data(), frame.bytes.size());
+            foreignCount.fetch_add (1);
         }
 
         justArrived.push_back (std::move (frame));
@@ -115,9 +126,10 @@ const char* ProbeProcessor::describe (Kind kind)
         case Kind::dumpBegin:   return "dump begin";
         case Kind::globals:     return "globals";
         case Kind::trackEngine: return "track engine";
-        case Kind::undecodable: break;
+        case Kind::foreign:     return "other SysEx, intact";
+        case Kind::damaged:     break;
     }
-    return "did NOT parse";
+    return "OUR TAG BUT DAMAGED";
 }
 
 void ProbeProcessor::resetCounters()
@@ -126,7 +138,8 @@ void ProbeProcessor::resetCounters()
     receivedCount.store (0);
     blockCount.store (0);
     testSeedCount.store (0);
-    undecodableCount.store (0);
+    damagedCount.store (0);
+    foreignCount.store (0);
 
     const juce::ScopedLock lock (receivedLock);
     received.clear();

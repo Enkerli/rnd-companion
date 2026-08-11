@@ -28,9 +28,17 @@ in, so a screenshot is a complete result.
 | What it says | What it means |
 |---|---|
 | Host is not calling processBlock | Not a SysEx result. Arm the track or roll the transport. |
+| This host DAMAGES RND SysEx | Our frames arrive **broken**. The worst case, because it looks like it works. Disqualifying. |
 | SysEx IN works: N test frames arrived intact | Inbound passthrough confirmed. |
-| Frames arrive but do not parse | The host is **rewriting** SysEx — the worst case, because it looks like it works. |
-| Receiving RND traffic, but none of our test seeds | Inbound works for the device, but the generator is not reaching this track. |
+| SysEx reaches this plugin (N other frames, intact) | Somebody else's SysEx got through whole — the path is open. Now send an RND frame to confirm end to end. |
+| Receiving traffic, but no SysEx yet | MIDI flows, SysEx has not been tried. |
+
+**"Other SysEx, intact" is a pass, not a failure.** Hosts emit their own SysEx —
+Logic sends MIDI Tuning Standard dumps to instrument tracks — and a host that
+hands over a 400-byte foreign frame with its checksum unharmed is demonstrably
+not stripping SysEx. The probe originally lumped "not an RND frame" together
+with "damaged" and reported Logic as a host that rewrites SysEx. It does not.
+Only frames carrying our own `6F 62 78` tag can count as damage.
 
 For the **out** direction the probe cannot judge itself: watch the far end.
 
@@ -100,6 +108,16 @@ fails silently.
 |---|---|---|---|---|
 | (none — direct CoreMIDI) | Standalone | pass | pass | Baseline above, 2026-08-10 |
 | AUM | AUv3 | | | |
-| Logic Pro | AU | | | |
-| Bitwig Studio | CLAP | | | |
+| Logic Pro | AU | ? | **likely pass** | Delivered two intact universal SysEx frames of its own (Master Fine Tuning, and a 400-byte MIDI Tuning bulk dump with a valid checksum). RND frames not yet fed in. |
+| Bitwig Studio | CLAP | ? | not yet exercised | Probe sent 4, received 0 — but as a Note FX its input is the *track's* MIDI input, not the HW Instrument's return. Set the track input to RND Synth before concluding anything. |
 | Bitwig Studio | VST3 | | | |
+
+### Why "sent 4, received 0" is not a result
+
+A Note FX or MIDI FX sees the MIDI arriving at the *track*, not what comes back
+from the hardware downstream of it. In Bitwig, a HW Instrument's return path
+does not feed the Note FX slot ahead of it. To test the IN direction, the
+track's MIDI input has to be the port the frames are coming from.
+
+The OUT direction cannot be judged from the probe's own window at all — it has
+no way to see past the host. Watch the far end in RND Companion.
