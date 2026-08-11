@@ -1,4 +1,4 @@
-#include "MainComponent.h"
+#include "CompanionView.h"
 
 namespace
 {
@@ -12,7 +12,8 @@ namespace
     }
 }
 
-MainComponent::MainComponent()
+CompanionView::CompanionView (CompanionModel& m)
+    : model (m)
 {
     // ── Ports ───────────────────────────────────────────────────────────────
     styleHeading (portsHeading);
@@ -22,10 +23,10 @@ MainComponent::MainComponent()
     inputCombo.onChange = [this]
     {
         const auto identifier = inputCombo.getSelectedId() > 0
-                              ? link.availableInputs()[inputCombo.getSelectedId() - 1].identifier
+                              ? model.link().availableInputs()[inputCombo.getSelectedId() - 1].identifier
                               : juce::String();
         if (identifier.isNotEmpty())
-            link.openInput (identifier);
+            model.link().openInput (identifier);
     };
     addAndMakeVisible (inputCombo);
 
@@ -33,10 +34,10 @@ MainComponent::MainComponent()
     outputCombo.onChange = [this]
     {
         const auto identifier = outputCombo.getSelectedId() > 0
-                              ? link.availableOutputs()[outputCombo.getSelectedId() - 1].identifier
+                              ? model.link().availableOutputs()[outputCombo.getSelectedId() - 1].identifier
                               : juce::String();
         if (identifier.isNotEmpty())
-            link.openOutput (identifier);
+            model.link().openOutput (identifier);
     };
     addAndMakeVisible (outputCombo);
 
@@ -45,13 +46,33 @@ MainComponent::MainComponent()
 
     autoConnectButton.onClick = [this]
     {
-        link.connectToRnd();
+        model.link().connectToRnd();
         refreshPortLists();
     };
     addAndMakeVisible (autoConnectButton);
 
     connectionLabel.setColour (juce::Label::textColourId, juce::Colours::orange);
     addAndMakeVisible (connectionLabel);
+
+    transportLabel.setFont (juce::Font (juce::FontOptions (12.0f)));
+    addAndMakeVisible (transportLabel);
+
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::direct), 1);
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::host), 2);
+    transportCombo.addItem (CompanionModel::transportName (CompanionModel::Transport::both), 3);
+    transportCombo.setSelectedId (1, juce::dontSendNotification);
+    transportCombo.setTooltip ("Direct works in every host and needs no routing. Host uses the "
+                               "plugin's MIDI stream -- proven in AUM, not in Logic or Bitwig.");
+    transportCombo.onChange = [this]
+    {
+        switch (transportCombo.getSelectedId())
+        {
+            case 2:  model.setTransport (CompanionModel::Transport::host); break;
+            case 3:  model.setTransport (CompanionModel::Transport::both); break;
+            default: model.setTransport (CompanionModel::Transport::direct); break;
+        }
+    };
+    addAndMakeVisible (transportCombo);
 
     // ── Device ──────────────────────────────────────────────────────────────
     styleHeading (deviceHeading);
@@ -76,7 +97,7 @@ MainComponent::MainComponent()
     randomButton.onClick = [this] { sendRandomSeed(); };
     addAndMakeVisible (randomButton);
 
-    readButton.onClick = [this] { link.requestStatusDump(); };
+    readButton.onClick = [this] { model.requestStatusDump(); };
     addAndMakeVisible (readButton);
 
     captureButton.onClick = [this] { captureCurrentSeed(); };
@@ -104,7 +125,7 @@ MainComponent::MainComponent()
     scaleCombo.onChange = [this]
     {
         if (scaleCombo.getSelectedId() > 0)
-            link.sendScale (scaleCombo.getSelectedId() - 1);
+            model.sendScale (scaleCombo.getSelectedId() - 1);
     };
     addAndMakeVisible (scaleCombo);
 
@@ -114,21 +135,21 @@ MainComponent::MainComponent()
     tonicCombo.onChange = [this]
     {
         if (tonicCombo.getSelectedId() > 0)
-            link.sendTonic (tonicCombo.getSelectedId() - 1);
+            model.sendTonic (tonicCombo.getSelectedId() - 1);
     };
     addAndMakeVisible (tonicCombo);
 
     volumeSlider.setRange (0.0, 127.0, 1.0);
     volumeSlider.setValue (100.0, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
-    volumeSlider.onValueChange = [this] { link.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
+    volumeSlider.onValueChange = [this] { model.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
     volumeSlider.onDragEnd     = [this] { appendLog ("Volume " + juce::String ((int) volumeSlider.getValue())); };
     addAndMakeVisible (volumeSlider);
 
     reverbSlider.setRange (0.0, 127.0, 1.0);
     reverbSlider.setValue (40.0, juce::dontSendNotification);
     reverbSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
-    reverbSlider.onValueChange = [this] { link.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
+    reverbSlider.onValueChange = [this] { model.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
     reverbSlider.onDragEnd     = [this] { appendLog ("Reverb " + juce::String ((int) reverbSlider.getValue())
                                                      + " (analog mix out only, USB stems stay dry)"); };
     addAndMakeVisible (reverbSlider);
@@ -167,7 +188,7 @@ MainComponent::MainComponent()
     noteEditor.onFocusLost = [this]
     {
         if (const auto seed = selectedSeed())
-            library.setNote (*seed, noteEditor.getText());
+            model.library().setNote (*seed, noteEditor.getText());
     };
     addAndMakeVisible (noteEditor);
 
@@ -182,7 +203,7 @@ MainComponent::MainComponent()
                               {
                                   const auto file = fc.getResult();
                                   if (file != juce::File())
-                                      appendLog (library.exportTo (file) ? "Exported to " + file.getFullPathName()
+                                      appendLog (model.library().exportTo (file) ? "Exported to " + file.getFullPathName()
                                                                          : "Export failed.");
                               });
     };
@@ -198,7 +219,7 @@ MainComponent::MainComponent()
                               {
                                   const auto file = fc.getResult();
                                   if (file != juce::File())
-                                      appendLog (library.importFrom (file) ? "Imported " + file.getFullPathName()
+                                      appendLog (model.library().importFrom (file) ? "Imported " + file.getFullPathName()
                                                                            : "Import failed.");
                               });
     };
@@ -214,12 +235,10 @@ MainComponent::MainComponent()
     addAndMakeVisible (logView);
 
     // ── Wiring ──────────────────────────────────────────────────────────────
-    link.onMessage = [this] (const rnd::Message& message) { handleDeviceMessage (message); };
-    link.onLog     = [this] (const juce::String& text) { appendLog (text); };
-    link.onConnectionChanged = [this] { refreshConnectionLabel(); };
-
-    library.onChanged = [this] { refreshLibrary(); };
-    library.load();
+    model.onStatusChanged = [this] { refreshFromModel(); };
+    model.onLog           = [this] (const juce::String& text) { appendLog (text); };
+    model.link().onConnectionChanged = [this] { refreshConnectionLabel(); };
+    model.library().onChanged = [this] { refreshLibrary(); };
 
     refreshPortLists();
     refreshStatusDisplay();
@@ -234,18 +253,18 @@ MainComponent::MainComponent()
     setSize (1040, 720);
 }
 
-MainComponent::~MainComponent()
+CompanionView::~CompanionView()
 {
-    library.flush();
+    model.library().flush();
 }
 
 //==============================================================================
-void MainComponent::paint (juce::Graphics& g)
+void CompanionView::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff232328));
 }
 
-void MainComponent::resized()
+void CompanionView::resized()
 {
     auto area = getLocalBounds().reduced (gap * 2);
 
@@ -265,6 +284,9 @@ void MainComponent::resized()
     autoConnectButton.setBounds (portRow.removeFromLeft (90));
     portRow.removeFromLeft (gap);
     rescanButton.setBounds (portRow.removeFromLeft (80));
+    portRow.removeFromLeft (gap);
+    transportLabel.setBounds (portRow.removeFromLeft (44));
+    transportCombo.setBounds (portRow.removeFromLeft (150));
     portRow.removeFromLeft (gap);
     connectionLabel.setBounds (portRow);
 
@@ -348,16 +370,16 @@ void MainComponent::resized()
 }
 
 //==============================================================================
-void MainComponent::timerCallback()
+void CompanionView::timerCallback()
 {
-    const auto inputs = link.availableInputs();
-    const auto outputs = link.availableOutputs();
+    const auto inputs = model.link().availableInputs();
+    const auto outputs = model.link().availableOutputs();
 
     if (inputs.size() != inputCombo.getNumItems() || outputs.size() != outputCombo.getNumItems())
         refreshPortLists();
 }
 
-void MainComponent::refreshPortLists()
+void CompanionView::refreshPortLists()
 {
     const auto fill = [] (juce::ComboBox& combo, const juce::Array<juce::MidiDeviceInfo>& devices,
                           const juce::String& openIdentifier)
@@ -372,23 +394,23 @@ void MainComponent::refreshPortLists()
                 combo.setSelectedId (i + 1, juce::dontSendNotification);
     };
 
-    fill (inputCombo, link.availableInputs(), link.inputIdentifier());
-    fill (outputCombo, link.availableOutputs(), link.outputIdentifier());
+    fill (inputCombo, model.link().availableInputs(), model.link().inputIdentifier());
+    fill (outputCombo, model.link().availableOutputs(), model.link().outputIdentifier());
 
     refreshConnectionLabel();
 }
 
-void MainComponent::refreshConnectionLabel()
+void CompanionView::refreshConnectionLabel()
 {
-    if (link.isConnected())
+    if (model.link().isConnected())
     {
         connectionLabel.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-        connectionLabel.setText (link.outputName(), juce::dontSendNotification);
+        connectionLabel.setText (model.link().outputName(), juce::dontSendNotification);
     }
-    else if (link.hasInput() || link.hasOutput())
+    else if (model.link().hasInput() || model.link().hasOutput())
     {
         connectionLabel.setColour (juce::Label::textColourId, juce::Colours::orange);
-        connectionLabel.setText (link.hasInput() ? "Input only" : "Output only", juce::dontSendNotification);
+        connectionLabel.setText (model.link().hasInput() ? "Input only" : "Output only", juce::dontSendNotification);
     }
     else
     {
@@ -397,27 +419,27 @@ void MainComponent::refreshConnectionLabel()
     }
 }
 
-void MainComponent::refreshStatusDisplay()
+void CompanionView::refreshStatusDisplay()
 {
-    seedDisplay.setText (status.seed ? juce::String (rnd::formatSeed (*status.seed)) : juce::String ("--"),
+    seedDisplay.setText (model.status().seed ? juce::String (rnd::formatSeed (*model.status().seed)) : juce::String ("--"),
                          juce::dontSendNotification);
 
     juce::StringArray lines;
 
-    if (status.tonic && status.scaleIndex)
-        lines.add (juce::String (rnd::tonicName (*status.tonic)) + " "
-                   + juce::String (rnd::scaleName (*status.scaleIndex)));
+    if (model.status().tonic && model.status().scaleIndex)
+        lines.add (juce::String (rnd::tonicName (*model.status().tonic)) + " "
+                   + juce::String (rnd::scaleName (*model.status().scaleIndex)));
 
-    if (status.tempoBpm)
-        lines.add (juce::String (*status.tempoBpm) + " BPM as reported");
+    if (model.status().tempoBpm)
+        lines.add (juce::String (*model.status().tempoBpm) + " BPM as reported");
 
-    if (status.patchMode)
-        lines.add ("Patch mode " + juce::String (*status.patchMode));
+    if (model.status().patchMode)
+        lines.add ("Patch mode " + juce::String (*model.status().patchMode));
 
-    if (! status.engines.empty())
+    if (! model.status().engines.empty())
     {
         juce::StringArray names;
-        for (const auto& engine : status.engines)
+        for (const auto& engine : model.status().engines)
             names.add (juce::String (engine.index + 1) + ": " + juce::String (engine.name));
 
         lines.add ("Engines " + names.joinIntoString ("  "));
@@ -429,18 +451,18 @@ void MainComponent::refreshStatusDisplay()
     statusDisplay.setText (lines.joinIntoString ("\n"), juce::dontSendNotification);
 
     // Reflect what the device reports without echoing it straight back out.
-    if (status.scaleIndex)
-        scaleCombo.setSelectedId (*status.scaleIndex + 1, juce::dontSendNotification);
+    if (model.status().scaleIndex)
+        scaleCombo.setSelectedId (*model.status().scaleIndex + 1, juce::dontSendNotification);
 
-    if (status.tonic)
-        tonicCombo.setSelectedId (*status.tonic + 1, juce::dontSendNotification);
+    if (model.status().tonic)
+        tonicCombo.setSelectedId (*model.status().tonic + 1, juce::dontSendNotification);
 }
 
-void MainComponent::refreshLibrary()
+void CompanionView::refreshLibrary()
 {
     const auto previous = selectedSeed();
 
-    visibleEntries = library.filtered (showUnrated.getToggleState(),
+    visibleEntries = model.library().filtered (showUnrated.getToggleState(),
                                        showKeep.getToggleState(),
                                        showPass.getToggleState());
     libraryList.updateContent();
@@ -459,41 +481,15 @@ void MainComponent::refreshLibrary()
 }
 
 //==============================================================================
-void MainComponent::handleDeviceMessage (const rnd::Message& message)
+void CompanionView::refreshFromModel()
 {
-    const bool wasSeed = std::get_if<rnd::SeedMessage> (&message) != nullptr;
-    const auto previousSeed = status.seed;
-
-    status.apply (message);
-
-    if (wasSeed && status.seed != previousSeed)
-    {
-        appendLog ("Device is on " + juce::String (rnd::formatSeed (*status.seed)));
-        seedEditor.setText (juce::String (rnd::formatSeed (*status.seed)), juce::dontSendNotification);
-    }
-
-    if (const auto* engine = std::get_if<rnd::TrackEngineMessage> (&message))
-        appendLog ("Track " + juce::String (engine->trackIndex + 1) + " engine "
-                   + juce::String (engine->engineName));
-
-    // A full dump is the only moment we know everything about a seed, so that
-    // is when the library entry is worth writing without being asked -- but
-    // once poked the device re-broadcasts its whole status hundreds of times a
-    // second, so this must fire on a *new* seed, not on every globals frame.
-    // (It used to fire on every one, which wrote the library JSON to disk at
-    // the device's broadcast rate.)
-    if (std::get_if<rnd::GlobalsMessage> (&message) != nullptr
-        && status.seed
-        && status.seed != lastAutoCapturedSeed)
-    {
-        lastAutoCapturedSeed = status.seed;
-        library.captureSeed (*status.seed, status);
-    }
+    if (const auto seed = model.status().seed)
+        seedEditor.setText (juce::String (rnd::formatSeed (*seed)), juce::dontSendNotification);
 
     refreshStatusDisplay();
 }
 
-void MainComponent::appendLog (const juce::String& text)
+void CompanionView::appendLog (const juce::String& text)
 {
     logView.moveCaretToEnd();
     logView.insertTextAtCaret (juce::Time::getCurrentTime().toString (false, true, true, true)
@@ -502,7 +498,7 @@ void MainComponent::appendLog (const juce::String& text)
 }
 
 //==============================================================================
-void MainComponent::sendSeedFromEditor()
+void CompanionView::sendSeedFromEditor()
 {
     const auto parsed = rnd::parseSeed (seedEditor.getText().toStdString());
 
@@ -515,45 +511,33 @@ void MainComponent::sendSeedFromEditor()
     sendSeed (*parsed, "typed");
 }
 
-void MainComponent::sendRandomSeed()
+void CompanionView::sendRandomSeed()
 {
     const auto seed = static_cast<std::uint32_t> (random.nextInt64());
     seedEditor.setText (juce::String (rnd::formatSeed (seed)), juce::dontSendNotification);
     sendSeed (seed, "random");
 }
 
-void MainComponent::sendSeed (std::uint32_t seed, const juce::String& reason)
+void CompanionView::sendSeed (std::uint32_t seed, const juce::String& reason)
 {
     juce::ignoreUnused (reason);
-
-    link.sendSeed (seed);
-
-    // The device echoes the seed back, but only eventually. Show it now, and
-    // drop any status we were holding: it described the previous patch.
-    status.seed = seed;
-    status.patchMode.reset();
-    status.tempoBpm.reset();
-    status.tonic.reset();
-    status.scaleIndex.reset();
-    status.engines.clear();
-
-    refreshStatusDisplay();
+    model.sendSeed (seed);
 }
 
-void MainComponent::captureCurrentSeed()
+void CompanionView::captureCurrentSeed()
 {
-    if (! status.seed)
+    if (! model.status().seed)
     {
         appendLog ("Nothing to capture yet.");
         return;
     }
 
-    library.captureSeed (*status.seed, status);
-    appendLog ("Captured " + juce::String (rnd::formatSeed (*status.seed)));
+    model.library().captureSeed (*model.status().seed, model.status());
+    appendLog ("Captured " + juce::String (rnd::formatSeed (*model.status().seed)));
 }
 
 //==============================================================================
-std::optional<std::uint32_t> MainComponent::selectedSeed() const
+std::optional<std::uint32_t> CompanionView::selectedSeed() const
 {
     const int row = libraryList.getSelectedRow();
 
@@ -563,31 +547,31 @@ std::optional<std::uint32_t> MainComponent::selectedSeed() const
     return visibleEntries[static_cast<std::size_t> (row)].seed;
 }
 
-void MainComponent::rateSelected (SeedEntry::Rating rating)
+void CompanionView::rateSelected (SeedEntry::Rating rating)
 {
     if (const auto seed = selectedSeed())
-        library.setRating (*seed, rating);
+        model.library().setRating (*seed, rating);
 }
 
-void MainComponent::removeSelected()
+void CompanionView::removeSelected()
 {
     if (const auto seed = selectedSeed())
-        library.remove (*seed);
+        model.library().remove (*seed);
 }
 
-void MainComponent::sendSelected()
+void CompanionView::sendSelected()
 {
     if (const auto seed = selectedSeed())
         sendSeed (*seed, "library");
 }
 
 //==============================================================================
-int MainComponent::getNumRows()
+int CompanionView::getNumRows()
 {
     return static_cast<int> (visibleEntries.size());
 }
 
-void MainComponent::paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected)
+void CompanionView::paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected)
 {
     if (row < 0 || row >= static_cast<int> (visibleEntries.size()))
         return;
@@ -618,11 +602,11 @@ void MainComponent::paintListBoxItem (int row, juce::Graphics& g, int width, int
     g.drawText (detail, 10, height / 2, width - 14, height / 2 - 2, juce::Justification::centredLeft);
 }
 
-void MainComponent::selectedRowsChanged (int)
+void CompanionView::selectedRowsChanged (int)
 {
     if (const auto seed = selectedSeed())
     {
-        if (const auto* entry = library.find (*seed))
+        if (const auto* entry = model.library().find (*seed))
             noteEditor.setText (entry->note, juce::dontSendNotification);
     }
     else
@@ -631,7 +615,7 @@ void MainComponent::selectedRowsChanged (int)
     }
 }
 
-void MainComponent::listBoxItemDoubleClicked (int row, const juce::MouseEvent&)
+void CompanionView::listBoxItemDoubleClicked (int row, const juce::MouseEvent&)
 {
     if (row >= 0 && row < static_cast<int> (visibleEntries.size()))
         sendSeed (visibleEntries[static_cast<std::size_t> (row)].seed, "library");

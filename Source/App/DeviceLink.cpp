@@ -161,18 +161,7 @@ void DeviceLink::handleAsyncUpdate()
 }
 
 //==============================================================================
-void DeviceLink::sendSeed (std::uint32_t seed)
-{
-    sendRawSysex (rnd::makeSeedMessage (seed),
-                  "Sent seed " + juce::String (rnd::formatSeed (seed)));
-}
-
-void DeviceLink::requestStatusDump()
-{
-    sendRawSysex (rnd::makeUnlockAndDump(), "Requested status dump (device mutes briefly)");
-}
-
-void DeviceLink::sendRawSysex (const std::vector<std::uint8_t>& frame, const juce::String& description)
+void DeviceLink::send (const rndcmd::Commands& commands)
 {
     if (midiOutput == nullptr)
     {
@@ -180,90 +169,23 @@ void DeviceLink::sendRawSysex (const std::vector<std::uint8_t>& frame, const juc
         return;
     }
 
-    if (frame.size() < 3)
-        return;
-
-    // createSysExMessage wants the body without the F0/F7 wrapper.
-    midiOutput->sendMessageNow (juce::MidiMessage::createSysExMessage (frame.data() + 1,
-                                                                       static_cast<int> (frame.size()) - 2));
-    log (description);
-}
-
-void DeviceLink::sendScale (int scaleIndex)
-{
-    if (midiOutput == nullptr)
+    for (const auto& command : commands)
     {
-        log ("No MIDI output open.");
-        return;
+        if (command.delayMs <= 0)
+        {
+            midiOutput->sendMessageNow (command.message);
+            continue;
+        }
+
+        // Scheduled, not slept on: a note-off must never block the message
+        // thread. At 1000 "samples" per second a sample position is a
+        // millisecond, which keeps the delay readable.
+        juce::MidiBuffer later;
+        later.addEvent (command.message, command.delayMs);
+        midiOutput->sendBlockOfMessages (later,
+                                         juce::Time::getMillisecondCounterHiRes() + 1.0,
+                                         1000.0);
     }
-
-    const auto value = rnd::scaleCcValue (scaleIndex);
-    midiOutput->sendMessageNow (juce::MidiMessage::controllerEvent (1, rnd::cc::scale, value));
-    log ("Scale -> " + juce::String (rnd::scaleName (scaleIndex))
-         + " (CC9 = " + juce::String (value) + "). Locks on the device until power cycle.");
-}
-
-void DeviceLink::sendTonic (int pitchClass)
-{
-    if (midiOutput == nullptr)
-    {
-        log ("No MIDI output open.");
-        return;
-    }
-
-    const int note = rnd::tonicNoteNumber (pitchClass);
-
-    // A short pulse, scheduled rather than slept, so the note-off never blocks
-    // the message thread. At 1000 "samples" per second a sample position is a
-    // millisecond, which makes the pulse length readable.
-    juce::MidiBuffer pulse;
-    pulse.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) 100), 0);
-    pulse.addEvent (juce::MidiMessage::noteOff (1, note), tonicPulseMs);
-
-    midiOutput->sendBlockOfMessages (pulse,
-                                     juce::Time::getMillisecondCounterHiRes() + 1.0,
-                                     1000.0);
-
-    log ("Tonic -> " + juce::String (rnd::tonicName (pitchClass))
-         + " (note " + juce::String (note) + "). Locks on the device until power cycle.");
-}
-
-void DeviceLink::sendVolume (int value, bool announce)
-{
-    sendCcToMixChannels (rnd::cc::volume, value, "Volume " + juce::String (value), announce);
-}
-
-void DeviceLink::sendReverb (int value, bool announce)
-{
-    sendCcToMixChannels (rnd::cc::reverb, value,
-                         "Reverb " + juce::String (value) + " (analog mix out only, USB stems stay dry)",
-                         announce);
-}
-
-void DeviceLink::sendCcToMixChannels (std::uint8_t controller, int value,
-                                      const juce::String& description, bool announce)
-{
-    if (midiOutput == nullptr)
-    {
-        log ("No MIDI output open.");
-        return;
-    }
-
-    const int clamped = juce::jlimit (0, 127, value);
-
-    // Each of these goes to five channels, so a slider drag is five messages
-    // per step. Repeats are worth suppressing.
-    auto& last = (controller == rnd::cc::reverb) ? lastReverbSent : lastVolumeSent;
-    if (last == clamped)
-        return;
-
-    last = clamped;
-
-    for (int channel : rnd::mixChannels)
-        midiOutput->sendMessageNow (juce::MidiMessage::controllerEvent (channel, controller, clamped));
-
-    if (announce)
-        log (description);
 }
 
 void DeviceLink::log (const juce::String& text)

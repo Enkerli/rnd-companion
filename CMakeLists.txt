@@ -72,44 +72,8 @@ if(RND_BUILD_APP OR RND_BUILD_PROBE)
     endif()
 endif()
 
-# ── Standalone app ───────────────────────────────────────────────────────────
-if(RND_BUILD_APP)
-    juce_add_gui_app(RndCompanion
-        PRODUCT_NAME     "RND Companion"
-        COMPANY_NAME     "Enkerli"
-        BUNDLE_ID        "com.enkerli.RndCompanion"
-        # CoreMIDI on iOS needs the background mode; harmless elsewhere.
-        MICROPHONE_PERMISSION_ENABLED FALSE)
-
-    target_sources(RndCompanion PRIVATE
-        Source/Standalone/Main.cpp
-        Source/Standalone/MainComponent.cpp
-        Source/Standalone/DeviceLink.cpp
-        Source/Standalone/SeedLibrary.cpp)
-
-    target_compile_definitions(RndCompanion PRIVATE
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:RndCompanion,JUCE_PRODUCT_NAME>"
-        JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:RndCompanion,JUCE_VERSION>")
-
-    target_link_libraries(RndCompanion PRIVATE
-        rnd_protocol
-        juce::juce_audio_devices
-        juce::juce_data_structures
-        juce::juce_gui_extra
-        PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags)
-endif()
-
-# ── SysEx passthrough probe ──────────────────────────────────────────────────
-# A throwaway-shaped but permanent diagnostic: the plugin that answers "does
-# this host pass SysEx?" for each format. Built on the suite archetype so the
-# answer is about SysEx and not about our project settings -- if the probe fails
-# to load, that is a settings bug and the archetype is where it gets fixed.
-if(RND_BUILD_PROBE)
+# ── enkerli-juce: the suite's plugin archetypes ──────────────────────────────
+if(RND_BUILD_APP OR RND_BUILD_PROBE)
     set(ENKERLI_JUCE_PATH "${CMAKE_SOURCE_DIR}/enkerli-juce" CACHE PATH "Path to enkerli-juce")
     if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake" AND EXISTS "$ENV{ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
         set(ENKERLI_JUCE_PATH "$ENV{ENKERLI_JUCE_PATH}")
@@ -118,9 +82,7 @@ if(RND_BUILD_PROBE)
         set(ENKERLI_JUCE_PATH "${CMAKE_SOURCE_DIR}/../enkerli-juce")
     endif()
 
-    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
-        message(WARNING "enkerli-juce not found - skipping the probe. Set -DENKERLI_JUCE_PATH=...")
-    else()
+    if(EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
         message(STATUS "Using enkerli-juce at ${ENKERLI_JUCE_PATH}")
 
         # clap-juce-extensions lives beside the suite repos, not inside them.
@@ -130,7 +92,54 @@ if(RND_BUILD_PROBE)
         endif()
 
         include("${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+    endif()
+endif()
 
+# ── RND Companion ────────────────────────────────────────────────────────────
+# A plugin, not a plain app. The host tests decided this: AUM passes SysEx to an
+# AUv3 in both directions, so the companion belongs inside the host on iPadOS.
+# The archetype's Standalone build replaces the old gui_app on desktop.
+if(RND_BUILD_APP)
+    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+        message(WARNING "enkerli-juce not found - skipping RND Companion.")
+    else()
+        enkerli_add_midi_effect_plugin(RndCompanion
+            PRODUCT_NAME "RND Companion"
+            PLUGIN_CODE  Rndc
+            BUNDLE_ID    "com.enkerli.RndCompanion"
+            VERSION      "0.1.0"
+            DESCRIPTION  "Capture, send and curate patch seeds on a Cymaforma RND Synth")
+
+        juce_generate_juce_header(RndCompanion)
+
+        target_sources(RndCompanion PRIVATE
+            Source/Plugin/CompanionProcessor.cpp
+            Source/Plugin/CompanionEditor.cpp
+            Source/App/CompanionModel.cpp
+            Source/App/CompanionView.cpp
+            Source/App/DeviceLink.cpp
+            Source/App/RndCommands.cpp
+            Source/App/SeedLibrary.cpp)
+
+        target_link_libraries(RndCompanion PRIVATE
+            rnd_protocol
+            juce::juce_audio_utils
+            juce::juce_gui_extra
+            PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+    endif()
+endif()
+
+
+# ── SysEx passthrough probe ──────────────────────────────────────────────────
+# A throwaway-shaped but permanent diagnostic: the plugin that answers "does
+# this host pass SysEx?" for each format. Built on the suite archetype so the
+# answer is about SysEx and not about our project settings.
+if(RND_BUILD_PROBE)
+    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+        message(WARNING "enkerli-juce not found - skipping the probe. Set -DENKERLI_JUCE_PATH=...")
+    else()
         enkerli_add_midi_effect_plugin(RndSysExProbe
             PRODUCT_NAME "RND SysEx Probe"
             PLUGIN_CODE  Rsxp

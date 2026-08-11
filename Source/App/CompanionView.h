@@ -1,17 +1,16 @@
 #pragma once
 
-#include "DeviceLink.h"
-#include "SeedLibrary.h"
+#include "CompanionModel.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
-class MainComponent : public juce::Component,
+class CompanionView : public juce::Component,
                       private juce::ListBoxModel,
                       private juce::Timer
 {
 public:
-    MainComponent();
-    ~MainComponent() override;
+    explicit CompanionView (CompanionModel&);
+    ~CompanionView() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -30,7 +29,7 @@ private:
     void refreshStatusDisplay();
     void refreshLibrary();
 
-    void handleDeviceMessage (const rnd::Message&);
+    void refreshFromModel();
     void appendLog (const juce::String&);
 
     void sendSeedFromEditor();
@@ -44,13 +43,10 @@ private:
     std::optional<std::uint32_t> selectedSeed() const;
 
     //==============================================================================
-    DeviceLink  link;
-    SeedLibrary library;
+    CompanionModel& model;
 
-    rnd::DeviceStatus status;
-
-    /// Guards the auto-capture against the device's repeated status broadcasts.
-    std::optional<std::uint32_t> lastAutoCapturedSeed;
+    juce::Label    transportLabel { {}, "Route" };
+    juce::ComboBox transportCombo;
 
     // Ports
     juce::Label     portsHeading { {}, "MIDI" };
@@ -98,5 +94,5 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     juce::Random random;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CompanionView)
 };

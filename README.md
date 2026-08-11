@@ -5,26 +5,36 @@ and keep a curated library of the ones worth remembering.
 
 Part of the Enkerli music suite. Public domain (CC0-1.0).
 
-## Why a standalone first
+## Two transports, and why
 
-The plugin formats are the destination — AUv3 on iPad, AU/VST3/CLAP on macOS,
-VST3/CLAP/LV2 on Linux. But the one thing that can sink the whole idea is not
-the device: it is that **hosts are unreliable about passing plugin-generated
-SysEx**, and seeds only move over SysEx. Everything else on the roadmap
-degrades gracefully if SysEx does not survive; seed capture and send does not.
+Seeds only move over SysEx, so the project's first job was to find out whether
+hosts pass it. They were measured, not guessed ([SYSEX_PASSTHROUGH.md](docs/SYSEX_PASSTHROUGH.md)):
 
-So the standalone comes first. It opens CoreMIDI or ALSA directly, which takes
-the host out of the picture entirely — anything that misbehaves is the device
-or us. Once it works, the same protocol core goes into the plugin shells and
-each host can be tested against a known-good reference.
+**No host damages SysEx.** Every frame that reached a plugin arrived byte-exact.
+What differs is routing — whether a host will carry a plugin's SysEx *out* to
+hardware. AUM does, both ways. Logic and Bitwig would not, through the
+sanctioned HW/External Instrument paths.
+
+So the companion carries two transports:
+
+- **Direct MIDI port** (default) — it opens the RND itself. Needs no host
+  routing, works everywhere, and is the only thing that works in Logic and
+  Bitwig.
+- **Host MIDI stream** — the plugin's own MIDI in/out. Proven in AUM.
+
+The host is still worth having for what hosts are good at: the note stream,
+transport, and recording the device's sequences.
 
 ## Layout
 
 ```
 Source/Protocol/    rnd_protocol — the codec. Plain C++17, no JUCE, no I/O.
-Source/Standalone/  The app: MIDI link, seed library, UI.
+Source/App/         Model, transports, seed library, UI.
+Source/Plugin/      The plugin shell over CompanionModel.
+Source/Probe/       RndSysExProbe — the host SysEx diagnostic.
 Tests/              Protocol tests, including a real hardware capture.
 docs/PROTOCOL.md    What is known about the wire protocol, and how surely.
+docs/SYSEX_PASSTHROUGH.md  Per-host SysEx results and how to reproduce them.
 ```
 
 `rnd_protocol` is deliberately free of JUCE so the plugin shells and a possible
@@ -34,6 +44,13 @@ WASM build of the web UI can share it unchanged.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j8
+```
+
+Formats: AU, VST3, CLAP and Standalone on macOS; AUv3 and Standalone on iPadOS;
+LV2, VST3, CLAP and Standalone on Linux. For the iPad:
+
+```bash
+cmake -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS && cmake --build build-ios --target RndCompanion_AUv3 --config Release
 ```
 
 JUCE is found in this order: an installed `JUCE` package, `$JUCE_PATH`,
@@ -75,9 +92,10 @@ metadata comes from what the hardware actually reported. See the last section of
 ## Roadmap
 
 - [x] Protocol core with tests against a hardware capture
-- [x] Standalone: capture, send, curate, live scale/tonic/volume/reverb
-- [ ] Per-host SysEx round-trip check, then the plugin shells (CLAP and AUv3
-      first — cleanest note-effect semantics)
+- [x] Capture, send, curate, live scale/tonic/volume/reverb
+- [x] Per-host SysEx measurement (no host damages it; routing is the issue)
+- [x] Plugin in every format, AUv3 included, with both transports
+- [ ] Decide what to do with the `0x21` tonic byte, which is not static
 - [ ] Controller channel routing
 - [ ] MIDI clock toggle, once the tempo field is calibrated
 - [ ] BIP39 three-word seed phrases, to match how Seed Lab writes them

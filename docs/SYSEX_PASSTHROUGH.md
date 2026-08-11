@@ -116,13 +116,30 @@ fails silently.
 |---|---|---|---|---|
 | (none — direct CoreMIDI) | Standalone | likely pass | **pass** | Baseline, 2026-08-10. 346 intact, 0 damaged. |
 | AUM (iPadOS) | AUv3 | likely pass | **pass** | 2026-08-10: 4416 frames, **736 of ours intact, 0 damaged**. Full dump cycle through an AUv3. Best result so far. |
-| Logic Pro | AU | ? | **likely pass** | Delivered two intact universal SysEx frames of its own (Master Fine Tuning, and a 400-byte MIDI Tuning bulk dump with valid checksum). RND frames not yet fed in. |
+| Logic Pro | AU | **fail** | inconclusive | 2026-08-10, 10 frames sent: 4 foreign frames arrived intact, 0 of ours, 0 damaged. Logic delivers SysEx to an AU perfectly well but would not route ours to the hardware. Not a damage problem — a routing one. |
 | Bitwig Studio | CLAP | ? | not yet exercised | Probe sent 4, received 0 — but as a Note FX its input is the *track's* MIDI input, not the HW Instrument's return. Set the track input to RND Synth before concluding anything. |
 | Bitwig Studio | VST3 | | | |
 
 "Likely pass" on OUT means the device was seen playing a seed the burst sent,
 but that seed was not unique to the burst. Re-run those with the per-burst seed
 and they become plain passes or plain failures.
+
+## What this settles
+
+No host damages SysEx. Every frame that reached a plugin, ours or anyone's,
+arrived byte-exact — the fear that started this exercise turned out to be
+unfounded. What differs is **routing**: whether a host will carry a plugin's
+SysEx out to hardware at all.
+
+- **AUM does**, both ways, which is why the companion is an AUv3 first.
+- **Logic and Bitwig would not**, through the sanctioned HW/External Instrument
+  paths. This is a known weak spot in desktop hosts generally, not something
+  worth more attempts to route around.
+
+So the companion carries **two transports** and defaults to the direct one:
+it opens the RND's port itself and uses the host only for what hosts are good
+at. That works in every host including the two that failed here, and the host
+stream stays available for AUM where it is proven.
 
 ### Why "sent 4, received 0" is not a result
 
