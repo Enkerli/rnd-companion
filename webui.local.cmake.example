@@ -1,0 +1,7 @@
+# Per-machine override for where the WebUI source lives. Copy to
+# webui.local.cmake (git-ignored) if music-suite is not a sibling checkout.
+#
+# The default assumes:  <parent>/music-suite/apps/rnd-companion
+# Also probed automatically: this repo nested inside the monorepo, and
+# $MUSIC_SUITE/apps/rnd-companion.
+set(RND_WEBUI_DIR "/path/to/music-suite/apps/rnd-companion" CACHE PATH "" FORCE)

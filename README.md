@@ -29,13 +29,23 @@ transport, and recording the device's sequences.
 
 ```
 Source/Protocol/    rnd_protocol — the codec. Plain C++17, no JUCE, no I/O.
-Source/App/         Model, transports, seed library, UI.
-Source/Plugin/      The plugin shell over CompanionModel.
+Source/App/         Model, transports, seed library. No view.
+Source/Plugin/      The shell: a WebView and the event contract behind it.
 Source/Probe/       RndSysExProbe — the host SysEx diagnostic.
 Tests/              Protocol tests, including a real hardware capture.
 docs/PROTOCOL.md    What is known about the wire protocol, and how surely.
 docs/SYSEX_PASSTHROUGH.md  Per-host SysEx results and how to reproduce them.
 ```
+
+**The UI is not in this repo.** It lives in the monorepo at
+`music-suite/apps/rnd-companion` and is bundled into the plugin at build time,
+the way the suite's other five embedded apps are. That is deliberate: it used
+to be a JUCE `LookAndFeel` re-implementing `components.css` by eye, and every
+design pass cost a round of geometry and colour bugs. Now the shipping
+stylesheet *is* the styling.
+
+CMake finds the app as a sibling checkout, inside the monorepo, or via
+`$MUSIC_SUITE`; override with `webui.local.cmake` (see the `.example`).
 
 `rnd_protocol` is deliberately free of JUCE so the plugin shells and a possible
 WASM build of the web UI can share it unchanged.

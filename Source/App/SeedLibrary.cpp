@@ -489,6 +489,11 @@ bool SeedLibrary::exportTo (const juce::File& file) const
     return file.replaceWithText (toJsonString());
 }
 
+juce::var SeedLibrary::itemsVar() const
+{
+    return toVar().getProperty ("items", juce::var());
+}
+
 juce::String SeedLibrary::toJsonString() const
 {
     return juce::JSON::toString (toVar(), false);

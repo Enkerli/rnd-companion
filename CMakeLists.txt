@@ -128,20 +128,96 @@ if(RND_BUILD_APP)
         add_dependencies(RndCompanion RndCompanionBuildStamp)
         target_include_directories(RndCompanion PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
-        # The app mark, for the header identity.
-        juce_add_binary_data(RndCompanionAssets SOURCES Assets/icon.png)
-        set_target_properties(RndCompanionAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# ── The WebUI ────────────────────────────────────────────────────────────────
+# The UI is an app in the monorepo (music-suite/apps/rnd-companion), like the
+# other five the plugins embed. This locates it, bundles it with esbuild, and
+# embeds the result -- so the plugin and the browser run the same code and a
+# design change lands in one place.
+set(RND_WEBUI_DIR "${CMAKE_SOURCE_DIR}/../music-suite/apps/rnd-companion"
+    CACHE PATH "Path to the RND Companion WebUI source (music-suite/apps/rnd-companion)")
+include("${CMAKE_CURRENT_SOURCE_DIR}/webui.local.cmake" OPTIONAL)
 
+if(NOT EXISTS "${RND_WEBUI_DIR}/main.js")
+    foreach(_cand "${CMAKE_SOURCE_DIR}/../apps/rnd-companion" "$ENV{MUSIC_SUITE}/apps/rnd-companion")
+        if(EXISTS "${_cand}/main.js")
+            set(RND_WEBUI_DIR "${_cand}" CACHE PATH "Path to the RND Companion WebUI source" FORCE)
+            break()
+        endif()
+    endforeach()
+endif()
+
+set(WEBUI_DIR   "${RND_WEBUI_DIR}")
+set(WEBUI_BUILD "${CMAKE_CURRENT_BINARY_DIR}/webui")
+
+if(NOT EXISTS "${WEBUI_DIR}/main.js")
+    message(FATAL_ERROR
+        "RND Companion WebUI source not found at ${WEBUI_DIR}. It lives in the "
+        "music-suite monorepo (apps/rnd-companion). Check out music-suite next "
+        "to this repo, set RND_WEBUI_DIR in webui.local.cmake, or export "
+        "MUSIC_SUITE=/path/to/music-suite.")
+endif()
+
+find_program(NPXCMD npx)
+if(NPXCMD)
+    file(GLOB WEBUI_SRC CONFIGURE_DEPENDS
+        "${WEBUI_DIR}/*.js" "${WEBUI_DIR}/*.css" "${WEBUI_DIR}/index.html")
+
+    # The monorepo packages this app imports are ALSO inputs: esbuild runs with
+    # --conditions=source, so @enkerli/* resolves to packages/*/src rather than
+    # a built dist. Listing only WEBUI_DIR is how Serpe once shipped a stale
+    # bundle whose UI rejected a string its own C++ parsed fine.
+    get_filename_component(_suite_root "${WEBUI_DIR}/../.." ABSOLUTE)
+    if(EXISTS "${_suite_root}/packages")
+        file(GLOB_RECURSE WEBUI_PKG_SRC CONFIGURE_DEPENDS
+            "${_suite_root}/packages/*/src/*.ts" "${_suite_root}/packages/*/src/*.js"
+            "${_suite_root}/packages/ui/tokens/*.css" "${_suite_root}/packages/ui/components/*.js")
+        list(APPEND WEBUI_SRC ${WEBUI_PKG_SRC})
+    else()
+        message(WARNING "no packages/ at ${_suite_root} - this WebUI bundle will not rebuild when @enkerli/* sources change")
+    endif()
+
+    add_custom_command(
+        OUTPUT  "${WEBUI_BUILD}/bundle.js"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${WEBUI_BUILD}"
+        COMMAND "${CMAKE_COMMAND}" -DOUT=${WEBUI_BUILD}/build-tag.js
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/write-build-tag.cmake"
+        COMMAND "${NPXCMD}" esbuild "${WEBUI_DIR}/main.js"
+                    --bundle --conditions=source
+                    "--inject:${WEBUI_BUILD}/build-tag.js"
+                    --loader:.css=text --loader:.svg=dataurl
+                    "--define:process.env.NODE_ENV=\"production\"" --minify
+                    "--outfile=${WEBUI_BUILD}/bundle.js"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/write-build-tag.cmake" ${WEBUI_SRC}
+        WORKING_DIRECTORY "${WEBUI_DIR}"
+        COMMENT "Bundling RND Companion WebUI with esbuild"
+        VERBATIM)
+    add_custom_target(RndCompanionWebUIBundle DEPENDS "${WEBUI_BUILD}/bundle.js")
+else()
+    message(WARNING "npx not found - the WebUI bundle must be pre-built at ${WEBUI_BUILD}/bundle.js")
+endif()
+
+set_source_files_properties("${WEBUI_BUILD}/bundle.js" PROPERTIES GENERATED TRUE)
+juce_add_binary_data(RndCompanionWebUI
+    HEADER_NAME BinaryDataWebUI.h
+    NAMESPACE   BinaryData
+    SOURCES
+        "${WEBUI_DIR}/index.html"
+        "${WEBUI_BUILD}/bundle.js")
+set_target_properties(RndCompanionWebUI PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NPXCMD)
+    add_dependencies(RndCompanionWebUI RndCompanionWebUIBundle)
+endif()
+
+        # The view is the WebUI now. CompanionView/SharedFrame/SuiteTheme were
+        # the hand-maintained second implementation of the design system and are
+        # gone; what is left is model, transports and codec.
         target_sources(RndCompanion PRIVATE
             Source/Plugin/CompanionProcessor.cpp
             Source/Plugin/CompanionEditor.cpp
             Source/App/CompanionModel.cpp
-            Source/App/CompanionView.cpp
             Source/App/DeviceLink.cpp
             Source/App/RndCommands.cpp
-            Source/App/SeedLibrary.cpp
-            Source/App/SharedFrame.cpp
-            Source/App/SuiteTheme.cpp)
+            Source/App/SeedLibrary.cpp)
 
         # enkerli-juce's file helpers: a plain FileChooser does nothing inside an
         # AUv3 app extension. On iOS these become a share sheet and a document
@@ -156,7 +232,7 @@ if(RND_BUILD_APP)
 
         target_link_libraries(RndCompanion PRIVATE
             rnd_protocol
-            RndCompanionAssets
+            RndCompanionWebUI
             juce::juce_audio_utils
             juce::juce_gui_extra
             PUBLIC

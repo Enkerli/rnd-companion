@@ -100,6 +100,10 @@ public:
     bool exportTo   (const juce::File& file) const;
     bool importFrom (const juce::File& file);
 
+    /// The entries as suite envelope items. The UI reads exactly the shape the
+    /// file holds -- there is no second form for the view to know about.
+    juce::var itemsVar() const;
+
     /// Serialised form, for transports that hand over bytes rather than paths
     /// (the iOS share sheet, say).
     juce::String toJsonString() const;
