@@ -59,6 +59,14 @@ juce::String SeedEntry::displayName() const
     return juce::String (rnd::formatSeed (seed));
 }
 
+juce::String SeedEntry::shortDescription() const
+{
+    if (! hasStatus)
+        return "no status captured";
+
+    return juce::String (rnd::tonicName (tonic)) + " " + juce::String (rnd::scaleName (scaleIndex));
+}
+
 juce::String SeedEntry::summary() const
 {
     if (! hasStatus)

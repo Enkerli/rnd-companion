@@ -102,6 +102,12 @@ private:
     // The suite's Shared Frame: theme · MIDI · density · Library · build.
     SharedFrame     frame;
     juce::Label     connectionLabel;
+
+    /// App identity, which the cluster deliberately does not carry: the mark
+    /// and the name sit at the head of the same row, left of the five slots.
+    juce::ImageComponent appMark;
+    juce::Label          appName { {}, "RND Companion" };
+    juce::Label          buildChip;
     bool            libraryShown = true;
 
     // Device
@@ -115,6 +121,7 @@ private:
     juce::TextButton captureButton { "Capture" };
     juce::Label      readCaveat;
     juce::Label      mixCaveat;
+    juce::Label      undoHint;
 
     // Live controls
     juce::Label     liveHeading { {}, "Live" };

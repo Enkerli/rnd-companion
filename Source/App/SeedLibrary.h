@@ -54,6 +54,10 @@ struct SeedEntry
     juce::String  displayName() const;
     juce::String  summary() const;
 
+    /// The shortest true description: root and scale, nothing else. Tempo and
+    /// engines live in summary(), which the row carries as its spoken name.
+    juce::String  shortDescription() const;
+
     /// True once the device has told us what this seed sounds like.
     bool hasFullCapture() const noexcept { return hasStatus; }
 };

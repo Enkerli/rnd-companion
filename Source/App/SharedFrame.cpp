@@ -195,7 +195,8 @@ void SharedFrame::refreshMidiChip()
 
     // "MIDI · n", as the shared cluster writes it. The separator is U+00B7, so
     // it goes through fromUTF8 like every other non-ASCII character here.
-    midiChip.setButtonText ("MIDI " + suite::glyph::middot() + " "
+    // The leading spaces leave room for the DIN-5 drawn in paint().
+    midiChip.setButtonText ("      MIDI " + suite::glyph::middot() + " "
                             + (ports > 0 ? juce::String (ports) : juce::String ("none")));
 
     midiChip.setTooltip (midi.connected
@@ -269,22 +270,42 @@ int SharedFrame::preferredHeight() const
     return suite::metrics::controlHeight (dense);
 }
 
+int SharedFrame::preferredWidth() const
+{
+    return 104 + 140 + 110 + 120 + gap * 3;   // theme, MIDI, density, library
+}
+
 void SharedFrame::paint (juce::Graphics& g)
 {
-    if (auto* lf = dynamic_cast<suite::SuiteLookAndFeel*> (&getLookAndFeel()))
-    {
-        const auto& t = lf->theme();
+    auto* lf = dynamic_cast<suite::SuiteLookAndFeel*> (&getLookAndFeel());
+    if (lf == nullptr)
+        return;
 
-        // A connected device gets a lit dot on the chip: state as shape and
-        // colour, never colour alone.
-        if (midi.connected)
-        {
-            const auto b = midiChip.getBounds();
-            g.setColour (t.affirm);
-            g.fillEllipse (static_cast<float> (b.getX()) + 8.0f,
-                           static_cast<float> (b.getCentreY()) - 3.0f, 6.0f, 6.0f);
-        }
+    const auto& t = lf->theme();
+    const auto chip = midiChip.getBounds().toFloat();
+
+    // A lit dot when connected: state as shape AND colour, never colour alone.
+    if (midi.connected)
+    {
+        g.setColour (t.affirm);
+        g.fillEllipse (chip.getX() + 8.0f, chip.getCentreY() - 3.0f, 6.0f, 6.0f);
     }
+
+    // The suite's ONE DIN-5 mark (global-cluster.js DIN5_SVG), drawn rather
+    // than copy-pasted: a ring and five pins.
+    const float r = 7.0f;
+    const float cx = chip.getX() + (midi.connected ? 26.0f : 18.0f);
+    const float cy = chip.getCentreY();
+
+    g.setColour (t.fg2);
+    g.drawEllipse (cx - r, cy - r, r * 2.0f, r * 2.0f, 1.3f);
+
+    const std::pair<float, float> pins[] {
+        { 0.0f, -0.62f }, { -0.68f, -0.25f }, { 0.68f, -0.25f }, { -0.48f, 0.4f }, { 0.48f, 0.4f }
+    };
+
+    for (const auto& p : pins)
+        g.fillEllipse (cx + p.first * r - 1.1f, cy + p.second * r - 1.1f, 2.2f, 2.2f);
 }
 
 void SharedFrame::resized()
@@ -294,9 +315,6 @@ void SharedFrame::resized()
 
     // The order IS the spec: theme · MIDI · density · Library, then build hard
     // right. Anything that has to give up width gives it up in the middle.
-    buildLabel.setBounds (area.removeFromRight (juce::jmin (140, area.getWidth() / 4)));
-    area.removeFromRight (gap);
-
     themeToggle.setBounds (area.removeFromLeft (juce::jmin (104, area.getWidth() / 4)).withHeight (h));
     area.removeFromLeft (gap);
 

@@ -1,6 +1,7 @@
 #include "CompanionView.h"
 
 #include "BuildStamp.h"
+#include "BinaryData.h"
 
 #include <FileExport.h>
 #include <FileImport.h>
@@ -116,6 +117,27 @@ CompanionView::CompanionView (CompanionModel& m)
         relayout();
     };
 
+    appMark.setImage (juce::ImageCache::getFromMemory (BinaryData::icon_png, BinaryData::icon_pngSize),
+                      juce::RectanglePlacement::centred);
+    appMark.setInterceptsMouseClicks (false, false);
+    content.addAndMakeVisible (appMark);
+
+    appName.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textMd), true));
+    content.addAndMakeVisible (appName);
+
+    // The build id lives beside the identity rather than inside the cluster:
+    // the five slots are fixed, and this is the app saying which build it is.
+    buildChip.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textXs)));
+    buildChip.setJustificationType (juce::Justification::centredRight);
+    buildChip.setText (RND_BUILD_STAMP, juce::dontSendNotification);
+    buildChip.setTitle ("Build " RND_BUILD_STAMP);
+    buildChip.setInterceptsMouseClicks (false, false);
+    content.addAndMakeVisible (buildChip);
+
+    undoHint.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
+    undoHint.setText ("   Remove undoes from a toast - no confirm dialog.", juce::dontSendNotification);
+    content.addAndMakeVisible (undoHint);
+
     frame.setBuildId (RND_BUILD_STAMP);
     frame.setThemeChoice (static_cast<SharedFrame::ThemeChoice> (model.themeMode()));
     content.addAndMakeVisible (frame);
@@ -176,7 +198,8 @@ CompanionView::CompanionView (CompanionModel& m)
     content.addAndMakeVisible (captureButton);
 
     readCaveat.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
-    readCaveat.setText ("Reading mutes the device briefly. Seeds arrive on their own when you turn the knob.",
+    // The leading spaces make room for the status dot drawn in paintContent.
+    readCaveat.setText ("   Reading mutes the device briefly. Seeds arrive on their own when you turn the knob.",
                         juce::dontSendNotification);
     content.addAndMakeVisible (readCaveat);
 
@@ -264,7 +287,8 @@ CompanionView::CompanionView (CompanionModel& m)
     }
     showPass.setToggleState (false, juce::dontSendNotification);
 
-    libraryList.setRowHeight (juce::jmax (44, suite::metrics::controlHeight() + 14));
+    // Single-line rows now, so they can be tighter and more of the library fits.
+    libraryList.setRowHeight (juce::jmax (32, suite::metrics::controlHeight()) + 8);
     libraryList.setWantsKeyboardFocus (true);
     libraryList.setTitle ("Seed library");
     content.addAndMakeVisible (libraryList);
@@ -373,6 +397,22 @@ void CompanionView::paintContent (juce::Graphics& g)
     for (const auto& panel : panelBounds)
         g.drawRoundedRectangle (panel.toFloat().reduced (0.5f),
                                 static_cast<float> (suite::metrics::radiusMd), 1.0f);
+
+    // Hint dots: caution for the one that costs you something audible, affirm
+    // for the one that promises a way back.
+    const auto dot = [&g] (juce::Rectangle<int> row, juce::Colour colour)
+    {
+        if (row.isEmpty())
+            return;
+
+        g.setColour (colour);
+        g.fillEllipse (static_cast<float> (row.getX()) + 1.0f,
+                       static_cast<float> (row.getCentreY()) - 3.0f, 6.0f, 6.0f);
+    };
+
+    dot (readCaveat.getBounds(), t.caution);
+    if (undoHint.isVisible())
+        dot (undoHint.getBounds(), t.affirm);
 }
 
 void CompanionView::resized()
@@ -439,15 +479,43 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     logView.setBounds (area.removeFromBottom (narrow ? 80 : 110));
     area.removeFromBottom (gap);
 
-    // ── Shared Frame, then the app's own row ───────────────────────────────
-    frame.setBounds (area.removeFromTop (frame.preferredHeight()));
-    area.removeFromTop (gap / 2);
+    // ── One header row ─────────────────────────────────────────────────────
+    // Identity, then the app's own Route control, then the fixed cluster hard
+    // right. Wraps to two rows only when there is genuinely not enough width.
+    const int h = frame.preferredHeight();
+    const bool splitHeader = area.getWidth() < frame.preferredWidth() + 420;
 
-    auto transportRow = area.removeFromTop (rowHeight());
-    transportLabel.setBounds (transportRow.removeFromLeft (44));
-    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 2)));
-    transportRow.removeFromLeft (gap);
-    connectionLabel.setBounds (transportRow);
+    auto header = area.removeFromTop (h);
+    juce::Rectangle<int> clusterRow;
+
+    if (splitHeader)
+    {
+        area.removeFromTop (gap / 2);
+        clusterRow = area.removeFromTop (h);
+    }
+    else
+    {
+        // Taken OUT of the header, not copied from it: assigning the rectangle
+        // and then trimming the copy left the identity and Route controls laid
+        // out across the full width, straight through the cluster.
+        clusterRow = header.removeFromRight (
+            juce::jmin (frame.preferredWidth() + 140, header.getWidth() * 2 / 3));
+        header.removeFromRight (gap);
+    }
+
+    buildChip.setBounds (clusterRow.removeFromRight (juce::jmin (128, clusterRow.getWidth() / 4)));
+    clusterRow.removeFromRight (gap);
+    frame.setBounds (clusterRow.removeFromRight (juce::jmin (frame.preferredWidth(), clusterRow.getWidth())));
+
+    appMark.setBounds (header.removeFromLeft (h).reduced (2));
+    header.removeFromLeft (gap / 2);
+    appName.setBounds (header.removeFromLeft (juce::jmin (150, header.getWidth() / 3)));
+    header.removeFromLeft (gap);
+
+    transportLabel.setBounds (header.removeFromLeft (juce::jmin (48, header.getWidth() / 4)));
+    transportCombo.setBounds (header.removeFromLeft (juce::jmin (170, header.getWidth() / 2)));
+    header.removeFromLeft (gap);
+    connectionLabel.setBounds (header.removeFromLeft (juce::jmax (0, juce::jmin (170, header.getWidth()))));
 
     area.removeFromTop (gap * 2);
 
@@ -562,7 +630,8 @@ void CompanionView::layoutContent (juce::Rectangle<int> fullBounds)
     buttonRow.removeFromLeft (gap);
     sendSelectedButton.setBounds (buttonRow.removeFromLeft (juce::jmax (0, buttonRow.getWidth())));
 
-    right.removeFromBottom (gap);
+    undoHint.setBounds (right.removeFromBottom (juce::jmin (18, right.getHeight())));
+    right.removeFromBottom (gap / 2);
     noteEditor.setBounds (right.removeFromBottom (rowHeight()));
     right.removeFromBottom (gap);
 
@@ -703,6 +772,15 @@ void CompanionView::applyTheme()
         heading->setFont (suite::SuiteLookAndFeel::eyebrowFont());
         heading->setColour (juce::Label::textColourId, t.fgMuted);
     }
+
+    deviceHeading.setText ("DEVICE", juce::dontSendNotification);
+    liveHeading.setText ("LIVE", juce::dontSendNotification);
+    libraryHeading.setText ("LIBRARY " + suite::glyph::middot() + " "
+                            + juce::String (visibleEntries.size()), juce::dontSendNotification);
+
+    appName.setColour (juce::Label::textColourId, t.fg);
+    buildChip.setColour (juce::Label::textColourId, t.fgMuted.withAlpha (0.75f));
+    undoHint.setColour (juce::Label::textColourId, t.fgMuted);
 
     seedDisplay.setColour (juce::Label::textColourId, t.fg);
     statusDisplay.setColour (juce::Label::textColourId, t.fg2);
@@ -862,11 +940,10 @@ void CompanionView::paintListBoxItem (int row, juce::Graphics& g, int width, int
         return;
 
     const auto& entry = visibleEntries[static_cast<std::size_t> (row)];
-
     const auto& t = lookAndFeel.theme();
 
     if (selected)
-        g.fillAll (t.accent.withAlpha (0.18f));
+        g.fillAll (t.accent.withAlpha (0.12f));
 
     // Rating is a colour AND a letter: no colour-only encoding (DESIGN.md).
     juce::Colour accent = t.fgFaint;
@@ -876,21 +953,22 @@ void CompanionView::paintListBoxItem (int row, juce::Graphics& g, int width, int
 
     g.setColour (accent);
     g.fillRect (0, 0, 3, height);
-    g.setFont (suite::SuiteLookAndFeel::eyebrowFont());
-    g.drawText (mark, width - 20, 0, 16, height, juce::Justification::centredRight);
 
+    g.setColour (accent);
+    g.setFont (suite::SuiteLookAndFeel::eyebrowFont());
+    g.drawText (mark, width - 26, 0, 18, height, juce::Justification::centredRight);
+
+    // One line: the seed, then the shortest true description of it. Tempo and
+    // engines are in the tooltip and the spoken name -- present, not shouted.
+    const int seedWidth = 116;
     g.setColour (t.fg);
     g.setFont (suite::SuiteLookAndFeel::monoFont (static_cast<float> (suite::metrics::textSm)));
-    g.drawText (entry.displayName(), 10, 2, width - 34, height / 2, juce::Justification::centredLeft);
+    g.drawText (entry.displayName(), 12, 0, seedWidth, height, juce::Justification::centredLeft);
 
-    g.setColour (t.fgMuted);
-    g.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textXs)));
-
-    juce::String detail = entry.summary();
-    if (entry.note.isNotEmpty())
-        detail += "  -  " + entry.note;
-
-    g.drawText (detail, 10, height / 2, width - 34, height / 2 - 2, juce::Justification::centredLeft);
+    g.setColour (t.fg2);
+    g.setFont (suite::SuiteLookAndFeel::sansFont (static_cast<float> (suite::metrics::textSm)));
+    g.drawText (entry.shortDescription(), 12 + seedWidth + 8, 0,
+                width - seedWidth - 52, height, juce::Justification::centredLeft);
 }
 
 juce::String CompanionView::getNameForRow (int row)
@@ -904,7 +982,9 @@ juce::String CompanionView::getNameForRow (int row)
     if (entry.rating == SeedEntry::Rating::keep) rating = "kept";
     if (entry.rating == SeedEntry::Rating::pass) rating = "passed";
 
-    // Spoken, not shown: colour and the K/P letter are the visual channels.
+    // The row shows the seed, a rating letter and a two-word description. The
+    // rest -- tempo, engines, the "when captured" caveat -- lives here, so a
+    // screen reader gets the whole entry rather than the compact half of it.
     return entry.displayName() + ", " + rating + ", " + entry.summary()
          + (entry.note.isNotEmpty() ? ", note: " + entry.note : juce::String());
 }

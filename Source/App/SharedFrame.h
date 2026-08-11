@@ -71,6 +71,10 @@ public:
     /// The cluster's natural height at the current density.
     int preferredHeight() const;
 
+    /// How much width the five slots want. The app's own header content takes
+    /// what is left, so the cluster stays right-aligned on one row.
+    int preferredWidth() const;
+
 private:
     void showMidiPanel();
     void refreshMidiChip();

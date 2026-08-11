@@ -113,15 +113,24 @@ if(RND_BUILD_APP)
 
         juce_generate_juce_header(RndCompanion)
 
-        # Build stamp, regenerated every build so the UI can say which build is
-        # running (F2 of the 2026-08-11 design audit).
+        # Build stamp, regenerated on EVERY build. It has to be an ALL custom
+        # TARGET with a COMMAND, not a custom command with an OUTPUT: the latter
+        # only re-runs when its output is missing, so the stamp froze at the
+        # first build and the chip cheerfully reported a twelve-hour-old build.
+        # (Vane hit this first; same fix.)
         set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/BuildStamp.h")
-        add_custom_command(OUTPUT "${_stamp}"
-            COMMAND ${CMAKE_COMMAND} -DOUTPUT=${_stamp} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenBuildStamp.cmake"
-            COMMENT "Stamping build" VERBATIM)
-        add_custom_target(RndCompanionBuildStamp DEPENDS "${_stamp}")
+        add_custom_target(RndCompanionBuildStamp ALL
+            COMMAND "${CMAKE_COMMAND}" "-DOUTPUT=${_stamp}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenBuildStamp.cmake"
+            BYPRODUCTS "${_stamp}"
+            COMMENT "Generating build timestamp -> BuildStamp.h"
+            VERBATIM)
         add_dependencies(RndCompanion RndCompanionBuildStamp)
         target_include_directories(RndCompanion PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+
+        # The app mark, for the header identity.
+        juce_add_binary_data(RndCompanionAssets SOURCES Assets/icon.png)
+        set_target_properties(RndCompanionAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
         target_sources(RndCompanion PRIVATE
             Source/Plugin/CompanionProcessor.cpp
@@ -147,6 +156,7 @@ if(RND_BUILD_APP)
 
         target_link_libraries(RndCompanion PRIVATE
             rnd_protocol
+            RndCompanionAssets
             juce::juce_audio_utils
             juce::juce_gui_extra
             PUBLIC
