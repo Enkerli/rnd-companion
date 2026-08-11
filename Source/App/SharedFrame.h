@@ -69,6 +69,11 @@ private:
     void showMidiPanel();
     void refreshMidiChip();
 
+    /// The open MIDI panel, if any. It reads the port list once, and pressing
+    /// Find RND from inside it changes that list underneath it -- so the frame
+    /// refreshes it rather than leaving it saying "none" after a connect.
+    juce::Component::SafePointer<juce::Component> openPanel;
+
     juce::ComboBox   themeCombo;
     juce::Label      themeLabel { {}, "Theme" };
 

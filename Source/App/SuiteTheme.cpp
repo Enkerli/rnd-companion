@@ -117,9 +117,11 @@ void SuiteLookAndFeel::applyColours()
     setColour (juce::Label::backgroundColourId,           juce::Colours::transparentBlack);
 
     setColour (juce::TextButton::buttonColourId,          current.bgRaised);
-    setColour (juce::TextButton::buttonOnColourId,        current.accent);
+    // A toggled button is no longer filled with the accent, so its text must
+    // not be accent-fg either: white ink on a sunken well is barely there.
+    setColour (juce::TextButton::buttonOnColourId,        current.bgSunken);
     setColour (juce::TextButton::textColourOffId,         current.fg);
-    setColour (juce::TextButton::textColourOnId,          current.accentFg);
+    setColour (juce::TextButton::textColourOnId,          current.fg);
 
     setColour (juce::ComboBox::backgroundColourId,        current.bgRaised);
     setColour (juce::ComboBox::textColourId,              current.fg);
@@ -167,16 +169,36 @@ void SuiteLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
     const auto bounds = button.getLocalBounds().toFloat().reduced (0.5f);
     const float radius = static_cast<float> (metrics::radiusSm);
 
-    auto fill = backgroundColour;
-    if (down)             fill = fill.overlaidWith (current.fg.withAlpha (0.12f));
-    else if (highlighted) fill = fill.overlaidWith (current.fg.withAlpha (0.06f));
+    // components.css .es-btn: bg-raised, border-strong, radius-sm; hover is
+    // bg-sunken. The accent fill there is .es-primary -- reserved for primary
+    // actions, which a density toggle is emphatically not.
+    const bool on = button.getToggleState();
+
+    auto fill = (on || highlighted) ? current.bgSunken : backgroundColour;
+    if (down)
+        fill = fill.overlaidWith (current.fg.withAlpha (0.08f));
 
     g.setColour (fill);
     g.fillRoundedRectangle (bounds, radius);
 
     // border-strong: this boundary identifies a control, so it is the ≥3:1 one.
-    g.setColour (button.hasKeyboardFocus (false) ? current.accent : current.borderStrong);
-    g.drawRoundedRectangle (bounds, radius, button.hasKeyboardFocus (false) ? 2.0f : 1.0f);
+    g.setColour (current.borderStrong);
+    g.drawRoundedRectangle (bounds, radius, 1.0f);
+
+    // Pressed state as a quiet underline rather than a filled block: enough to
+    // read at a glance, not enough to compete with the actual content.
+    if (on)
+    {
+        g.setColour (current.accent);
+        g.fillRoundedRectangle (bounds.getX() + radius, bounds.getBottom() - 3.0f,
+                                bounds.getWidth() - radius * 2.0f, 2.0f, 1.0f);
+    }
+
+    if (button.hasKeyboardFocus (false))
+    {
+        g.setColour (current.accent);
+        g.drawRoundedRectangle (bounds.reduced (1.5f), radius - 1.5f, 2.0f);
+    }
 }
 
 void SuiteLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, bool,
@@ -280,6 +302,36 @@ void SuiteLookAndFeel::drawTickBox (juce::Graphics& g, juce::Component& componen
     g.setColour (current.accentFg);
     g.strokePath (tick, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved,
                                               juce::PathStrokeType::rounded));
+}
+
+void SuiteLookAndFeel::drawCallOutBoxBackground (juce::CallOutBox& box, juce::Graphics& g,
+                                                 const juce::Path& path, juce::Image& cachedImage)
+{
+    // LookAndFeel_V4 fills this with widgetBackground at 80% alpha over a black
+    // drop-shadow image, which turns paper into a grey that appears nowhere in
+    // the suite. Opaque fill, --es-shadow's own colour, decorative border.
+    juce::ignoreUnused (box);
+
+    if (cachedImage.isNull())
+    {
+        cachedImage = { juce::Image::ARGB, box.getWidth(), box.getHeight(), true };
+
+        juce::Graphics shadowGraphics (cachedImage);
+        const auto shadow = current.bg.getBrightness() > 0.5f
+                                ? juce::Colour (0x141c1914)   // rgba(28,25,20,.08)
+                                : juce::Colour (0x47000000);  // rgba(0,0,0,.28)
+
+        juce::DropShadow (shadow, 18, { 0, 6 }).drawForPath (shadowGraphics, path);
+    }
+
+    g.setColour (juce::Colours::black);
+    g.drawImageAt (cachedImage, 0, 0);
+
+    g.setColour (current.bgRaised);
+    g.fillPath (path);
+
+    g.setColour (current.border);
+    g.strokePath (path, juce::PathStrokeType (1.0f));
 }
 
 }  // namespace suite

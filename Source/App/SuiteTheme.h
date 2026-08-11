@@ -95,6 +95,8 @@ public:
                            juce::Slider::SliderStyle, juce::Slider&) override;
     void drawTickBox (juce::Graphics&, juce::Component&, float x, float y, float w, float h,
                       bool ticked, bool enabled, bool highlighted, bool down) override;
+    void drawCallOutBoxBackground (juce::CallOutBox&, juce::Graphics&,
+                                   const juce::Path&, juce::Image&) override;
 
 private:
     void applyColours();

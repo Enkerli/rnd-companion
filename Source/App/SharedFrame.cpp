@@ -4,10 +4,16 @@ namespace
 {
     constexpr int gap = 10;   // --es-gap
 
+    /// Kept in the anonymous namespace; SharedFrame only needs it as a Component.
+    struct PanelBase : juce::Component
+    {
+        virtual void refresh (const SharedFrame::MidiState&) = 0;
+    };
+
     /// The MIDI panel behind the chip — the JUCE equivalent of the cluster's
     /// popover. Two endpoints plus the two actions that only a native app can
     /// offer, since it owns the ports rather than asking a host for them.
-    class MidiPanel : public juce::Component
+    class MidiPanel : public PanelBase
     {
     public:
         MidiPanel (const SharedFrame::MidiState& state,
@@ -21,12 +27,34 @@ namespace
             heading.setText ("MIDI DEVICES", juce::dontSendNotification);
             addAndMakeVisible (heading);
 
+            refresh (state);
+
+            findButton.onClick = [find] { if (find) find(); };
+            rescanButton.onClick = [rescan] { if (rescan) rescan(); };
+
+            const std::initializer_list<juce::Component*> children {
+                &inputLabel, &inputBox, &outputLabel, &outputBox, &findButton, &rescanButton
+            };
+            for (auto* c : children)
+                addAndMakeVisible (*c);
+
+            // Tall enough for both endpoints AND the two actions. At 168 the
+            // buttons were laid out below the bottom edge -- present, invisible.
+            setSize (320, 214);
+        }
+
+        /// Re-reads the ports. Pressing Find RND from inside this panel changes
+        /// the selection under it, and a panel still saying "none" after a
+        /// successful connect is simply wrong.
+        void refresh (const SharedFrame::MidiState& state) override
+        {
             auto fill = [] (juce::ComboBox& box, juce::Label& label, const juce::String& text,
                             const juce::Array<juce::MidiDeviceInfo>& devices, const juce::String& selected)
             {
                 label.setFont (suite::SuiteLookAndFeel::eyebrowFont());
                 label.setText (text, juce::dontSendNotification);
 
+                box.clear (juce::dontSendNotification);
                 box.setTextWhenNoChoicesAvailable ("none found");
                 box.setTextWhenNothingSelected ("none");
 
@@ -51,19 +79,6 @@ namespace
                 const int i = outputBox.getSelectedId() - 1;
                 if (i >= 0 && i < ids.size() && onOut) onOut (ids[i].identifier);
             };
-
-            findButton.onClick = [find] { if (find) find(); };
-            rescanButton.onClick = [rescan] { if (rescan) rescan(); };
-
-            const std::initializer_list<juce::Component*> children {
-                &inputLabel, &inputBox, &outputLabel, &outputBox, &findButton, &rescanButton
-            };
-            for (auto* c : children)
-                addAndMakeVisible (*c);
-
-            // Tall enough for both endpoints AND the two actions. At 168 the
-            // buttons were laid out below the bottom edge -- present, invisible.
-            setSize (320, 214);
         }
 
         void resized() override
@@ -161,6 +176,9 @@ void SharedFrame::setMidiState (const MidiState& state)
 {
     midi = state;
     refreshMidiChip();
+
+    if (auto* panel = dynamic_cast<PanelBase*> (openPanel.getComponent()))
+        panel->refresh (midi);
 }
 
 void SharedFrame::refreshMidiChip()
@@ -180,6 +198,7 @@ void SharedFrame::refreshMidiChip()
 void SharedFrame::showMidiPanel()
 {
     auto panel = std::make_unique<MidiPanel> (midi, onSelectInput, onSelectOutput, onFindDevice, onRescan);
+    openPanel = panel.get();
 
     // A CallOutBox's content is not in our component tree, so it would render
     // with JUCE's default dark LookAndFeel -- a dark popover on paper.
