@@ -236,7 +236,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
-    library.save();
+    library.flush();
 }
 
 //==============================================================================
@@ -477,9 +477,18 @@ void MainComponent::handleDeviceMessage (const rnd::Message& message)
                    + juce::String (engine->engineName));
 
     // A full dump is the only moment we know everything about a seed, so that
-    // is when the library entry is worth writing without being asked.
-    if (std::get_if<rnd::GlobalsMessage> (&message) != nullptr && status.seed)
+    // is when the library entry is worth writing without being asked -- but
+    // once poked the device re-broadcasts its whole status hundreds of times a
+    // second, so this must fire on a *new* seed, not on every globals frame.
+    // (It used to fire on every one, which wrote the library JSON to disk at
+    // the device's broadcast rate.)
+    if (std::get_if<rnd::GlobalsMessage> (&message) != nullptr
+        && status.seed
+        && status.seed != lastAutoCapturedSeed)
+    {
+        lastAutoCapturedSeed = status.seed;
         library.captureSeed (*status.seed, status);
+    }
 
     refreshStatusDisplay();
 }

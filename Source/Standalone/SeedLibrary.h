@@ -10,6 +10,7 @@
 #include "../Protocol/RndProtocol.h"
 
 #include <juce_data_structures/juce_data_structures.h>
+#include <juce_events/juce_events.h>
 
 #include <vector>
 
@@ -39,10 +40,11 @@ struct SeedEntry
     juce::String  summary() const;
 };
 
-class SeedLibrary
+class SeedLibrary : private juce::Timer
 {
 public:
     SeedLibrary();
+    ~SeedLibrary() override;
 
     /// Adds the seed, or updates the existing entry for it. Status fields are
     /// only overwritten when `status` actually carries them, so re-capturing a
@@ -63,6 +65,10 @@ public:
     bool save() const;
     bool load();
 
+    /// Writes any pending changes now. Called on destruction; call it directly
+    /// before anything that must see the file up to date.
+    void flush();
+
     bool exportTo   (const juce::File& file) const;
     bool importFrom (const juce::File& file);
 
@@ -71,10 +77,14 @@ public:
     std::function<void()> onChanged;
 
 private:
+    void timerCallback() override;
     void changed();
     juce::var toVar() const;
     bool fromVar (const juce::var& value, bool merge);
 
+    static bool sameContent (const SeedEntry&, const SeedEntry&);
+
     std::vector<SeedEntry> items;
     juce::File storage;
+    bool dirty = false;
 };

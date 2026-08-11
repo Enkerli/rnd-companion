@@ -49,6 +49,9 @@ private:
 
     rnd::DeviceStatus status;
 
+    /// Guards the auto-capture against the device's repeated status broadcasts.
+    std::optional<std::uint32_t> lastAutoCapturedSeed;
+
     // Ports
     juce::Label     portsHeading { {}, "MIDI" };
     juce::ComboBox  inputCombo, outputCombo;

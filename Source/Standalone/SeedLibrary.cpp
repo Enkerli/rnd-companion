@@ -48,6 +48,12 @@ SeedLibrary::SeedLibrary()
 {
 }
 
+SeedLibrary::~SeedLibrary()
+{
+    stopTimer();
+    flush();
+}
+
 juce::File SeedLibrary::defaultFile()
 {
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
@@ -100,12 +106,33 @@ void SeedLibrary::captureSeed (std::uint32_t seed, const rnd::DeviceStatus& stat
         entry.engines = names.joinIntoString (", ");
     }
 
+    // The device repeats its status constantly, so the same capture arrives
+    // over and over. Writing an identical entry would churn the file for
+    // nothing.
+    if (index >= 0 && sameContent (items[static_cast<std::size_t> (index)], entry))
+        return;
+
     if (index >= 0)
         items[static_cast<std::size_t> (index)] = entry;
     else
         items.push_back (entry);
 
     changed();
+}
+
+bool SeedLibrary::sameContent (const SeedEntry& a, const SeedEntry& b)
+{
+    // capturedAtMs deliberately excluded: a re-capture of unchanged content is
+    // not a change worth persisting.
+    return a.seed == b.seed
+        && a.rating == b.rating
+        && a.note == b.note
+        && a.hasStatus == b.hasStatus
+        && a.patchMode == b.patchMode
+        && a.tempoBpm == b.tempoBpm
+        && a.tonic == b.tonic
+        && a.scaleIndex == b.scaleIndex
+        && a.engines == b.engines;
 }
 
 void SeedLibrary::setRating (std::uint32_t seed, SeedEntry::Rating rating)
@@ -272,8 +299,26 @@ bool SeedLibrary::importFrom (const juce::File& file)
 
 void SeedLibrary::changed()
 {
-    save();
+    // Coalesce writes rather than hitting the disk per edit: a burst of changes
+    // (an import, or a device that will not stop talking) becomes one save.
+    dirty = true;
+    startTimer (1500);
 
     if (onChanged != nullptr)
         onChanged();
+}
+
+void SeedLibrary::timerCallback()
+{
+    stopTimer();
+    flush();
+}
+
+void SeedLibrary::flush()
+{
+    if (! dirty)
+        return;
+
+    dirty = false;
+    save();
 }

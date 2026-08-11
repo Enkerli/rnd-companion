@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 option(RND_BUILD_APP   "Build the standalone app (needs JUCE)" ON)
 option(RND_BUILD_TESTS "Build the protocol tests (no JUCE needed)" ON)
+option(RND_BUILD_PROBE "Build the SysEx passthrough probe plugin (needs enkerli-juce)" ON)
 
 # ── rnd_protocol ─────────────────────────────────────────────────────────────
 # The codec, deliberately free of JUCE and of I/O so the plugin shells and a
@@ -40,8 +41,8 @@ if(RND_BUILD_TESTS)
     add_test(NAME protocol COMMAND rnd_protocol_tests)
 endif()
 
-# ── Standalone app ───────────────────────────────────────────────────────────
-if(RND_BUILD_APP)
+# ── JUCE ─────────────────────────────────────────────────────────────────────
+if(RND_BUILD_APP OR RND_BUILD_PROBE)
     # Same JUCE resolution as the rest of the suite: installed package, then a
     # local checkout (JUCE_PATH env or /Applications/JUCE), then FetchContent.
     find_package(JUCE CONFIG QUIET)
@@ -69,7 +70,10 @@ if(RND_BUILD_APP)
             FetchContent_MakeAvailable(JUCE)
         endif()
     endif()
+endif()
 
+# ── Standalone app ───────────────────────────────────────────────────────────
+if(RND_BUILD_APP)
     juce_add_gui_app(RndCompanion
         PRODUCT_NAME     "RND Companion"
         COMPANY_NAME     "Enkerli"
@@ -98,4 +102,54 @@ if(RND_BUILD_APP)
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+endif()
+
+# ── SysEx passthrough probe ──────────────────────────────────────────────────
+# A throwaway-shaped but permanent diagnostic: the plugin that answers "does
+# this host pass SysEx?" for each format. Built on the suite archetype so the
+# answer is about SysEx and not about our project settings -- if the probe fails
+# to load, that is a settings bug and the archetype is where it gets fixed.
+if(RND_BUILD_PROBE)
+    set(ENKERLI_JUCE_PATH "${CMAKE_SOURCE_DIR}/enkerli-juce" CACHE PATH "Path to enkerli-juce")
+    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake" AND EXISTS "$ENV{ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+        set(ENKERLI_JUCE_PATH "$ENV{ENKERLI_JUCE_PATH}")
+    endif()
+    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake" AND EXISTS "${CMAKE_SOURCE_DIR}/../enkerli-juce/cmake/EnkerliPlugin.cmake")
+        set(ENKERLI_JUCE_PATH "${CMAKE_SOURCE_DIR}/../enkerli-juce")
+    endif()
+
+    if(NOT EXISTS "${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+        message(WARNING "enkerli-juce not found - skipping the probe. Set -DENKERLI_JUCE_PATH=...")
+    else()
+        message(STATUS "Using enkerli-juce at ${ENKERLI_JUCE_PATH}")
+
+        # clap-juce-extensions lives beside the suite repos, not inside them.
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/clap-juce-extensions/CMakeLists.txt"
+           AND EXISTS "${CMAKE_SOURCE_DIR}/../clap-juce-extensions/CMakeLists.txt")
+            set(CLAP_JUCE_PATH "${CMAKE_SOURCE_DIR}/../clap-juce-extensions" CACHE PATH "Path to clap-juce-extensions")
+        endif()
+
+        include("${ENKERLI_JUCE_PATH}/cmake/EnkerliPlugin.cmake")
+
+        enkerli_add_midi_effect_plugin(RndSysExProbe
+            PRODUCT_NAME "RND SysEx Probe"
+            PLUGIN_CODE  Rsxp
+            BUNDLE_ID    "com.enkerli.RndSysExProbe"
+            VERSION      "0.1.0"
+            DESCRIPTION  "Checks whether a host passes RND SysEx in and out of a plugin")
+
+        juce_generate_juce_header(RndSysExProbe)
+
+        target_sources(RndSysExProbe PRIVATE
+            Source/Probe/ProbeProcessor.cpp
+            Source/Probe/ProbeEditor.cpp)
+
+        target_link_libraries(RndSysExProbe PRIVATE
+            rnd_protocol
+            juce::juce_audio_utils
+            juce::juce_gui_extra
+            PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+    endif()
 endif()

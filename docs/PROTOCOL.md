@@ -74,10 +74,24 @@ nothing observed clears that one except a power cycle.
 
 ### `0x20` — dump begins
 
-Empty payload, arriving between the seed and the globals. Seed Lab does not
-handle this command at all, so its meaning is our inference from position
-alone. Treated here as "a new patch description follows", which is why it
-clears the accumulated engine list.
+Empty payload. Seed Lab does not handle this command at all, so its meaning is
+our inference from position. Live observation (2026-08-10) confirms a stable
+cycle, repeated for as long as the device is talking:
+
+```
+10 (seed) -> 20 (dump begin) -> 21 (globals) -> 22 x N (one per track) -> repeat
+```
+
+Treated here as "a new patch description follows", which is why it clears the
+accumulated engine list.
+
+**The device re-broadcasts this whole cycle at a high rate** — roughly 500
+frames per second was measured after loading a seed. It is not constant: the
+device was silent at other times, so what starts and stops the stream is not
+yet known. Two consequences. Passive capture gets the complete status without
+ever sending `0x11`, so the mute is avoidable in practice. And anything that
+reacts per frame must be cheap: writing a file per globals frame, for one
+example, is a few hundred writes a second.
 
 ### `0x21` — globals
 
@@ -90,6 +104,13 @@ clears the accumulated engine list.
 
 Captured: `02 7D 00 02 11` → mode 2, 125 BPM, tonic D, scale 17 (prometheus).
 
+**The tonic byte is not stable.** Across consecutive dumps from one running
+patch — same seed, same tempo, same scale — byte 3 was observed cycling through
+0x0B, 0x06, 0x09 and 0x04 (B, F♯, A, E). Either it reports the *current* root
+of the running material rather than a patch setting, or it is not the tonic at
+all. Seed Lab treats it as a static tonic. Do not build anything that assumes
+it holds still until this is understood.
+
 **Tempo caveat.** The capture's note grid is built from a single ~0.385 s pulse,
 which does not divide evenly into 125 BPM — closer to a 4:5 relationship. The
 recording was made in Logic at 120 BPM, but that only affects how ticks are
@@ -101,13 +122,25 @@ Do not derive a clock from this field without measuring first.
 | Byte | Meaning |
 |---|---|
 | 0 | track index, 0-based |
-| 1 | unknown (observed `0x00`) |
-| 2 | unknown (observed `0x01`) |
+| 1 | unknown, **varies** |
+| 2 | unknown, **varies** |
 | 3… | engine name, ASCII, NUL-terminated |
 
-Captured: `00 00 01 46 4D 00` → track 0, engine `FM`. Seed Lab skips bytes 1
-and 2 without comment. One frame per track; the capture was cut off after the
-first, so the ordering of a complete multi-track dump is unverified.
+Seed Lab skips bytes 1 and 2 without comment. They are not constants — observed
+pairs so far:
+
+| Frame | Bytes 1,2 | Engine |
+|---|---|---|
+| `00 00 01 …` | 0x00, 0x01 | FM |
+| `00 02 00 …` | 0x02, 0x00 | Plucked String |
+| `01 00 01 …` | 0x00, 0x01 | Acid (303) |
+| `02 00 00 …` | 0x00, 0x00 | Speech |
+
+They plausibly carry the track's role and some engine variant, but that is a
+guess. Engine names seen to date: `FM`, `Speech`, `Plucked String`, `Acid (303)`.
+
+A full multi-track dump sends one frame per track in ascending track order,
+confirmed live with a three-track patch.
 
 ## Channel messages
 
