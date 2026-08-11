@@ -144,21 +144,34 @@ void CompanionModel::processHostMidi (juce::MidiBuffer& midi, double sampleRate,
 {
     if (currentTransport != Transport::direct)
     {
-        // Collect first: adding to a MidiBuffer while iterating it is not safe.
+        // We *consume* RND SysEx rather than passing it on. In AUM it is easy to
+        // wire a plugin's output back to its own input, and forwarding the
+        // device's constant status broadcast into such a loop turns a routing
+        // mistake into a runaway. Everything that is not ours passes through
+        // untouched -- notes, clock, other vendors' SysEx.
         std::vector<std::vector<std::uint8_t>> arrived;
+        juce::MidiBuffer passedThrough;
 
         for (const auto metadata : midi)
         {
             const auto message = metadata.getMessage();
-            if (! message.isSysEx())
-                continue;
 
-            const auto* data = message.getSysExData();
-            const auto  size = message.getSysExDataSize();
+            if (message.isSysEx())
+            {
+                const auto* data = message.getSysExData();
+                const auto  size = message.getSysExDataSize();
 
-            if (data != nullptr && size > 0)
-                arrived.emplace_back (data, data + size);
+                if (data != nullptr && size > 0 && rnd::hasManufacturerTag (data, static_cast<std::size_t> (size)))
+                {
+                    arrived.emplace_back (data, data + size);
+                    continue;   // ours: swallowed, never forwarded
+                }
+            }
+
+            passedThrough.addEvent (message, metadata.samplePosition);
         }
+
+        midi.swapWith (passedThrough);
 
         if (! arrived.empty())
         {

@@ -104,16 +104,18 @@ example, is a few hundred writes a second.
 
 Captured: `02 7D 00 02 11` → mode 2, 125 BPM, tonic D, scale 17 (prometheus).
 
-**The tonic byte is not stable — confirmed over a long run.** Across dozens of
+**Byte 3 is the current root, and it moves.** Read together with the channel-1
+rule below, this field reports the root the device is playing *now* rather than a
+patch setting.
+
+Confirmed over a long run: Across dozens of
 consecutive dumps of one running patch (seed `0x0fedcba9`, tempo 118, scale 6
 all constant), byte 3 took nearly every value in 0x00–0x0B, in no repeating
 order: 02, 09, 00, 05, 03, 08, 06, 0B, 04, 07, 0A, 01 …
 
-So it is not a patch setting. It either reports the *current* root of the
-running material, or it is not the tonic at all. Seed Lab treats it as a static
-tonic and displays it as such. Nothing should be built on it holding still, and
-a library entry that records it as "the seed's tonic" is recording a sample of a
-moving value.
+Seed Lab treats it as a static tonic and displays it as such; it is not one.
+A library entry that records it as "the seed's tonic" is recording a sample of a
+moving value, so this project labels it *root when captured*.
 
 **Tempo caveat.** The capture's note grid is built from a single ~0.385 s pulse,
 which does not divide evenly into 125 BPM — closer to a 4:5 relationship. The
@@ -151,13 +153,20 @@ confirmed live with a three-track patch.
 | What | Message | Notes |
 |---|---|---|
 | Scale | CC9 on ch 1 | 20 bands over 0–127; send the band midpoint, `floor(3.2 + 6.4 × index)` |
-| Tonic | note on/off, ch 1 | note `60 + pitchClass`, ~80–100 ms pulse |
+| Root | note on/off, **ch 1** | note `60 + pitchClass`, ~80–100 ms pulse |
 | Volume | CC7 on ch 1–5 | ch 1 master, ch 2–5 per-track takeover |
 | Reverb | CC91 on ch 1–5 | **analog stereo mix out only** — the four USB stems stay dry |
 
-**Scale and tonic lock.** Setting either sticks on the hardware and changes
-which engines a given seed produces. A seed loaded after a lock does not sound
-like the same seed loaded before it. Only a power cycle is known to clear this.
+**Channel 1 is special.** Incoming notes on channel 1 are interpreted as *root
+notes*, not as notes to play. Notes on channels 2–5 play the corresponding
+instrument and behave as the Cymaforma documentation describes (note, velocity,
+pitchbend, aftertouch, up to 4-voice polyphony). This is why setting the root is
+a note pulse rather than a CC, and it means a controller wired naively to
+channel 1 will transpose the patch instead of playing it.
+
+**Scale and root lock.** Setting either sticks on the hardware and changes which
+engines a given seed produces. A seed loaded after a lock does not sound like the
+same seed loaded before it. Only a power cycle is known to clear this.
 
 ## The note stream
 

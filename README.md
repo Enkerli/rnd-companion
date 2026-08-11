@@ -3,7 +3,7 @@
 Capture and send patch seeds on a [Cymaforma RND Synth](https://www.cymaforma.com/rnd-synth),
 and keep a curated library of the ones worth remembering.
 
-Part of the Enkerli music suite. Public domain (CC0-1.0).
+Part of the [Enkerli music suite](https://github.com/enkerli/music-suite). Public domain (Unlicense).
 
 ## Two transports, and why
 
@@ -95,7 +95,7 @@ metadata comes from what the hardware actually reported. See the last section of
 - [x] Capture, send, curate, live scale/tonic/volume/reverb
 - [x] Per-host SysEx measurement (no host damages it; routing is the issue)
 - [x] Plugin in every format, AUv3 included, with both transports
-- [ ] Decide what to do with the `0x21` tonic byte, which is not static
+- [ ] Suite look & feel: light/dark themes, library IA, Workspace component
 - [ ] Controller channel routing
 - [ ] MIDI clock toggle, once the tempo field is calibrated
 - [ ] BIP39 three-word seed phrases, to match how Seed Lab writes them

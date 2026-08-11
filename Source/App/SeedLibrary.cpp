@@ -33,7 +33,9 @@ juce::String SeedEntry::summary() const
         return "no status captured";
 
     juce::String text;
-    text << juce::String (rnd::tonicName (tonic)) << " " << juce::String (rnd::scaleName (scaleIndex));
+    // "root when captured", not the seed's tonic: the device reports the root
+    // it is playing now, and that moves while the patch runs.
+    text << juce::String (rnd::scaleName (scaleIndex)) << ", root " << juce::String (rnd::tonicName (tonic)) << " when captured";
     text << ", " << tempoBpm << " BPM";
 
     if (engines.isNotEmpty())
@@ -286,7 +288,22 @@ bool SeedLibrary::load()
 
 bool SeedLibrary::exportTo (const juce::File& file) const
 {
-    return file.replaceWithText (juce::JSON::toString (toVar(), false));
+    return file.replaceWithText (toJsonString());
+}
+
+juce::String SeedLibrary::toJsonString() const
+{
+    return juce::JSON::toString (toVar(), false);
+}
+
+bool SeedLibrary::importJsonString (const juce::String& text)
+{
+    return fromVar (juce::JSON::parse (text), true);
+}
+
+juce::String SeedLibrary::timestampedExportName()
+{
+    return "rnd-seeds-" + juce::Time::getCurrentTime().formatted ("%Y-%m-%d-%H%M%S") + ".json";
 }
 
 bool SeedLibrary::importFrom (const juce::File& file)

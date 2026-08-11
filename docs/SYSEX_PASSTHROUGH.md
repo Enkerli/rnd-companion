@@ -117,8 +117,26 @@ fails silently.
 | (none — direct CoreMIDI) | Standalone | likely pass | **pass** | Baseline, 2026-08-10. 346 intact, 0 damaged. |
 | AUM (iPadOS) | AUv3 | likely pass | **pass** | 2026-08-10: 4416 frames, **736 of ours intact, 0 damaged**. Full dump cycle through an AUv3. Best result so far. |
 | Logic Pro | AU | **fail** | inconclusive | 2026-08-10, 10 frames sent: 4 foreign frames arrived intact, 0 of ours, 0 damaged. Logic delivers SysEx to an AU perfectly well but would not route ours to the hardware. Not a damage problem — a routing one. |
-| Bitwig Studio | CLAP | ? | not yet exercised | Probe sent 4, received 0 — but as a Note FX its input is the *track's* MIDI input, not the HW Instrument's return. Set the track input to RND Synth before concluding anything. |
-| Bitwig Studio | VST3 | | | |
+| Bitwig Studio | CLAP | **fail** | not exercised | Tried several routings, incl. Note FX ahead of HW Instrument. |
+| Bitwig Studio | VST3 | not tested | not tested | |
+
+## Where the companion landed
+
+Direct transport, in every host tested:
+
+| Host | Format | Direct | Host stream |
+|---|---|---|---|
+| AUM | AUv3 | **works** | works, with a caveat (below) |
+| Logic Pro | AU | **works** | no |
+| Bitwig Studio | CLAP | **works** | no |
+
+Both/Host mode is selectable everywhere but only does anything in AUM.
+
+**The AUM caveat:** it is easy to wire a plugin's MIDI output back to its own
+input there. The device broadcasts its status continuously, so forwarding that
+into such a loop turns a routing slip into a runaway. The companion therefore
+*consumes* RND SysEx in host mode rather than passing it downstream; everything
+else — notes, clock, other vendors' SysEx — passes through untouched.
 
 "Likely pass" on OUT means the device was seen playing a seed the burst sent,
 but that seed was not unique to the burst. Re-run those with the per-burst seed

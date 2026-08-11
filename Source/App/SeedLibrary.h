@@ -72,6 +72,16 @@ public:
     bool exportTo   (const juce::File& file) const;
     bool importFrom (const juce::File& file);
 
+    /// Serialised form, for transports that hand over bytes rather than paths
+    /// (the iOS share sheet, say).
+    juce::String toJsonString() const;
+    bool importJsonString (const juce::String&);
+
+    /// Export names carry the moment they were taken: without it a folder of
+    /// exports is a pile of rnd-seeds2, rnd-seeds3, rnd-seeds4 with no way to
+    /// tell which is newest.
+    static juce::String timestampedExportName();
+
     static juce::File defaultFile();
 
     std::function<void()> onChanged;

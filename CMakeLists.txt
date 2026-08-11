@@ -121,6 +121,17 @@ if(RND_BUILD_APP)
             Source/App/RndCommands.cpp
             Source/App/SeedLibrary.cpp)
 
+        # enkerli-juce's file helpers: a plain FileChooser does nothing inside an
+        # AUv3 app extension. On iOS these become a share sheet and a document
+        # picker presented from the responder chain (device-verified in AUM).
+        target_include_directories(RndCompanion PRIVATE "${ENKERLI_JUCE_PATH}/src")
+
+        if(APPLE)
+            target_sources(RndCompanion PRIVATE
+                "${ENKERLI_JUCE_PATH}/src/FileExport.mm"
+                "${ENKERLI_JUCE_PATH}/src/FileImport.mm")
+        endif()
+
         target_link_libraries(RndCompanion PRIVATE
             rnd_protocol
             juce::juce_audio_utils

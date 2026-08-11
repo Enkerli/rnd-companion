@@ -1,5 +1,8 @@
 #include "CompanionView.h"
 
+#include <FileExport.h>
+#include <FileImport.h>
+
 namespace
 {
     constexpr int rowHeight = 24;
@@ -194,34 +197,29 @@ CompanionView::CompanionView (CompanionModel& m)
 
     exportButton.onClick = [this]
     {
-        chooser = std::make_unique<juce::FileChooser> ("Export seed library",
-                                                       juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
-                                                           .getChildFile ("rnd-seeds.json"),
-                                                       "*.json");
-        chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-                              [this] (const juce::FileChooser& fc)
-                              {
-                                  const auto file = fc.getResult();
-                                  if (file != juce::File())
-                                      appendLog (model.library().exportTo (file) ? "Exported to " + file.getFullPathName()
-                                                                         : "Export failed.");
-                              });
+        // enkerli::exportBytes because a plain FileChooser does nothing inside
+        // an AUv3 app extension -- on iOS this becomes a share sheet presented
+        // from the responder chain. Same call on every platform.
+        const auto json = model.library().toJsonString();
+        juce::MemoryBlock bytes (json.toRawUTF8(), json.getNumBytesAsUTF8());
+
+        enkerli::exportBytes (*this, SeedLibrary::timestampedExportName(), bytes);
+        appendLog ("Exporting " + SeedLibrary::timestampedExportName());
     };
     addAndMakeVisible (exportButton);
 
     importButton.onClick = [this]
     {
-        chooser = std::make_unique<juce::FileChooser> ("Import seed library",
-                                                       juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-                                                       "*.json");
-        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                              [this] (const juce::FileChooser& fc)
-                              {
-                                  const auto file = fc.getResult();
-                                  if (file != juce::File())
-                                      appendLog (model.library().importFrom (file) ? "Imported " + file.getFullPathName()
-                                                                           : "Import failed.");
-                              });
+        enkerli::importFile (*this, "*.json",
+                             [this] (const juce::String& name, const juce::MemoryBlock& bytes)
+                             {
+                                 const juce::String text (juce::CharPointer_UTF8 (
+                                     static_cast<const char*> (bytes.getData())), bytes.getSize());
+
+                                 appendLog (model.library().importJsonString (text)
+                                                ? "Imported " + name
+                                                : "Could not read " + name);
+                             });
     };
     addAndMakeVisible (importButton);
 
@@ -266,35 +264,54 @@ void CompanionView::paint (juce::Graphics& g)
 
 void CompanionView::resized()
 {
+    // Responsive on purpose. An AUv3 is presented at whatever size the host's
+    // pane happens to be, not at the size we asked for -- the transport
+    // selector used to sit ~700px along a single row, which put it off-screen
+    // in AUM entirely and read as "the dropdown doesn't work".
     auto area = getLocalBounds().reduced (gap * 2);
 
-    // Log along the bottom.
-    logView.setBounds (area.removeFromBottom (110));
+    const bool narrow = area.getWidth() < 860;
+
+    logView.setBounds (area.removeFromBottom (narrow ? 80 : 110));
     area.removeFromBottom (gap);
 
-    // Ports across the top.
-    auto ports = area.removeFromTop (rowHeight * 2 + gap);
-    portsHeading.setBounds (ports.removeFromTop (rowHeight));
+    // ── Ports: always two rows, so nothing depends on the width ────────────
+    portsHeading.setBounds (area.removeFromTop (rowHeight));
 
-    auto portRow = ports.removeFromTop (rowHeight);
-    inputCombo.setBounds (portRow.removeFromLeft (250));
+    auto portRow = area.removeFromTop (rowHeight);
+    const int comboWidth = juce::jmax (110, (portRow.getWidth() - 190 - gap * 3) / 2);
+    inputCombo.setBounds (portRow.removeFromLeft (comboWidth));
     portRow.removeFromLeft (gap);
-    outputCombo.setBounds (portRow.removeFromLeft (250));
+    outputCombo.setBounds (portRow.removeFromLeft (comboWidth));
     portRow.removeFromLeft (gap);
-    autoConnectButton.setBounds (portRow.removeFromLeft (90));
+    autoConnectButton.setBounds (portRow.removeFromLeft (juce::jmin (90, portRow.getWidth())));
     portRow.removeFromLeft (gap);
-    rescanButton.setBounds (portRow.removeFromLeft (80));
-    portRow.removeFromLeft (gap);
-    transportLabel.setBounds (portRow.removeFromLeft (44));
-    transportCombo.setBounds (portRow.removeFromLeft (150));
-    portRow.removeFromLeft (gap);
-    connectionLabel.setBounds (portRow);
+    rescanButton.setBounds (portRow.removeFromLeft (juce::jmax (0, juce::jmin (80, portRow.getWidth()))));
+
+    area.removeFromTop (gap / 2);
+    auto transportRow = area.removeFromTop (rowHeight);
+    transportLabel.setBounds (transportRow.removeFromLeft (44));
+    transportCombo.setBounds (transportRow.removeFromLeft (juce::jmin (170, transportRow.getWidth() / 2)));
+    transportRow.removeFromLeft (gap);
+    connectionLabel.setBounds (transportRow);
 
     area.removeFromTop (gap * 2);
 
-    auto left = area.removeFromLeft (area.getWidth() / 2 - gap);
-    area.removeFromLeft (gap * 2);
-    auto right = area;
+    // ── Below: two columns when there is room, stacked when there is not ───
+    juce::Rectangle<int> left, right;
+
+    if (narrow)
+    {
+        right = area.removeFromBottom (juce::jmax (150, area.getHeight() / 2));
+        area.removeFromBottom (gap);
+        left = area;
+    }
+    else
+    {
+        left = area.removeFromLeft (area.getWidth() / 2 - gap);
+        area.removeFromLeft (gap * 2);
+        right = area;
+    }
 
     // ── Left: device + live ────────────────────────────────────────────────
     deviceHeading.setBounds (left.removeFromTop (rowHeight));
@@ -303,29 +320,29 @@ void CompanionView::resized()
     left.removeFromTop (gap);
 
     auto seedRow = left.removeFromTop (rowHeight);
-    seedEditor.setBounds (seedRow.removeFromLeft (200));
+    seedEditor.setBounds (seedRow.removeFromLeft (juce::jmax (120, seedRow.getWidth() - 170)));
     seedRow.removeFromLeft (gap);
-    sendButton.setBounds (seedRow.removeFromLeft (70));
+    sendButton.setBounds (seedRow.removeFromLeft (juce::jmin (70, seedRow.getWidth())));
     seedRow.removeFromLeft (gap);
-    randomButton.setBounds (seedRow.removeFromLeft (80));
+    randomButton.setBounds (seedRow.removeFromLeft (juce::jmax (0, juce::jmin (80, seedRow.getWidth()))));
 
     left.removeFromTop (gap);
     auto actionRow = left.removeFromTop (rowHeight);
     readButton.setBounds (actionRow.removeFromLeft (110));
     actionRow.removeFromLeft (gap);
-    captureButton.setBounds (actionRow.removeFromLeft (120));
+    captureButton.setBounds (actionRow.removeFromLeft (juce::jmax (0, juce::jmin (120, actionRow.getWidth()))));
 
     readCaveat.setBounds (left.removeFromTop (rowHeight));
-    left.removeFromTop (gap * 2);
+    left.removeFromTop (gap);
 
     liveHeading.setBounds (left.removeFromTop (rowHeight));
 
     auto scaleRow = left.removeFromTop (rowHeight);
-    scaleLabel.setBounds (scaleRow.removeFromLeft (56));
-    scaleCombo.setBounds (scaleRow.removeFromLeft (180));
+    scaleLabel.setBounds (scaleRow.removeFromLeft (50));
+    scaleCombo.setBounds (scaleRow.removeFromLeft (juce::jmax (110, scaleRow.getWidth() - 130)));
     scaleRow.removeFromLeft (gap);
-    tonicLabel.setBounds (scaleRow.removeFromLeft (44));
-    tonicCombo.setBounds (scaleRow.removeFromLeft (70));
+    tonicLabel.setBounds (scaleRow.removeFromLeft (juce::jmin (44, scaleRow.getWidth())));
+    tonicCombo.setBounds (scaleRow.removeFromLeft (juce::jmax (0, juce::jmin (70, scaleRow.getWidth()))));
 
     left.removeFromTop (gap);
     auto volumeRow = left.removeFromTop (rowHeight);
@@ -337,30 +354,32 @@ void CompanionView::resized()
     reverbLabel.setBounds (reverbRow.removeFromLeft (56));
     reverbSlider.setBounds (reverbRow);
 
-    lockWarning.setBounds (left.removeFromTop (rowHeight * 2));
+    if (left.getHeight() > 0)
+        lockWarning.setBounds (left.removeFromTop (juce::jmin (rowHeight * 2, left.getHeight())));
 
     // ── Right: library ─────────────────────────────────────────────────────
     libraryHeading.setBounds (right.removeFromTop (rowHeight));
 
     auto filterRow = right.removeFromTop (rowHeight);
-    showUnrated.setBounds (filterRow.removeFromLeft (80));
-    showKeep.setBounds (filterRow.removeFromLeft (80));
-    showPass.setBounds (filterRow.removeFromLeft (80));
+    showUnrated.setBounds (filterRow.removeFromLeft (72));
+    showKeep.setBounds (filterRow.removeFromLeft (72));
+    showPass.setBounds (filterRow.removeFromLeft (72));
     filterRow.removeFromLeft (gap);
-    exportButton.setBounds (filterRow.removeFromLeft (70));
+    exportButton.setBounds (filterRow.removeFromLeft (juce::jmax (0, juce::jmin (70, filterRow.getWidth()))));
     filterRow.removeFromLeft (gap);
-    importButton.setBounds (filterRow.removeFromLeft (70));
+    importButton.setBounds (filterRow.removeFromLeft (juce::jmax (0, juce::jmin (70, filterRow.getWidth()))));
 
     right.removeFromTop (gap);
 
     auto buttonRow = right.removeFromBottom (rowHeight);
-    keepButton.setBounds (buttonRow.removeFromLeft (70));
+    const int actionWidth = juce::jmax (52, (buttonRow.getWidth() - gap * 3) / 4);
+    keepButton.setBounds (buttonRow.removeFromLeft (actionWidth));
     buttonRow.removeFromLeft (gap);
-    passButton.setBounds (buttonRow.removeFromLeft (70));
+    passButton.setBounds (buttonRow.removeFromLeft (actionWidth));
     buttonRow.removeFromLeft (gap);
-    sendSelectedButton.setBounds (buttonRow.removeFromLeft (70));
+    sendSelectedButton.setBounds (buttonRow.removeFromLeft (actionWidth));
     buttonRow.removeFromLeft (gap);
-    removeButton.setBounds (buttonRow.removeFromLeft (80));
+    removeButton.setBounds (buttonRow.removeFromLeft (juce::jmax (0, buttonRow.getWidth())));
 
     right.removeFromBottom (gap);
     noteEditor.setBounds (right.removeFromBottom (rowHeight));
