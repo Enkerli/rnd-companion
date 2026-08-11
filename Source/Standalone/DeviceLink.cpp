@@ -228,18 +228,20 @@ void DeviceLink::sendTonic (int pitchClass)
          + " (note " + juce::String (note) + "). Locks on the device until power cycle.");
 }
 
-void DeviceLink::sendVolume (int value)
+void DeviceLink::sendVolume (int value, bool announce)
 {
-    sendCcToMixChannels (rnd::cc::volume, value, "Volume " + juce::String (value));
+    sendCcToMixChannels (rnd::cc::volume, value, "Volume " + juce::String (value), announce);
 }
 
-void DeviceLink::sendReverb (int value)
+void DeviceLink::sendReverb (int value, bool announce)
 {
     sendCcToMixChannels (rnd::cc::reverb, value,
-                         "Reverb " + juce::String (value) + " (analog mix out only, USB stems stay dry)");
+                         "Reverb " + juce::String (value) + " (analog mix out only, USB stems stay dry)",
+                         announce);
 }
 
-void DeviceLink::sendCcToMixChannels (std::uint8_t controller, int value, const juce::String& description)
+void DeviceLink::sendCcToMixChannels (std::uint8_t controller, int value,
+                                      const juce::String& description, bool announce)
 {
     if (midiOutput == nullptr)
     {
@@ -249,10 +251,19 @@ void DeviceLink::sendCcToMixChannels (std::uint8_t controller, int value, const 
 
     const int clamped = juce::jlimit (0, 127, value);
 
+    // Each of these goes to five channels, so a slider drag is five messages
+    // per step. Repeats are worth suppressing.
+    auto& last = (controller == rnd::cc::reverb) ? lastReverbSent : lastVolumeSent;
+    if (last == clamped)
+        return;
+
+    last = clamped;
+
     for (int channel : rnd::mixChannels)
         midiOutput->sendMessageNow (juce::MidiMessage::controllerEvent (channel, controller, clamped));
 
-    log (description);
+    if (announce)
+        log (description);
 }
 
 void DeviceLink::log (const juce::String& text)

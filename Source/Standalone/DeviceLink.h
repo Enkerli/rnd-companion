@@ -75,8 +75,11 @@ public:
     /// see the note-on, so this is comfort margin rather than a requirement.
     static constexpr int tonicPulseMs = 100;
 
-    void sendVolume (int value);
-    void sendReverb (int value);
+    /// `announce` controls whether the send is logged. Continuous controls send
+    /// far faster than a log can usefully be read, so a drag sends quietly and
+    /// only announces the value it settles on.
+    void sendVolume (int value, bool announce = true);
+    void sendReverb (int value, bool announce = true);
 
     /// Escape hatch for probing undocumented commands by hand.
     void sendRawSysex (const std::vector<std::uint8_t>& frame, const juce::String& description);
@@ -85,12 +88,17 @@ private:
     void handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage&) override;
     void handleAsyncUpdate() override;
 
-    void sendCcToMixChannels (std::uint8_t controller, int value, const juce::String& description);
+    void sendCcToMixChannels (std::uint8_t controller, int value, const juce::String& description,
+                              bool announce);
     void log (const juce::String& text);
 
     std::unique_ptr<juce::MidiInput>  midiInput;
     std::unique_ptr<juce::MidiOutput> midiOutput;
     juce::String openInputIdentifier, openOutputIdentifier;
+
+    // Last value actually put on the wire, so a drag that lands on the same
+    // step twice does not resend it.
+    int lastVolumeSent = -1, lastReverbSent = -1;
 
     // Incoming SysEx arrives on a MIDI thread; everything else in this class
     // runs on the message thread.

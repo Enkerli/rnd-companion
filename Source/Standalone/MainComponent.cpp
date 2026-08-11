@@ -121,13 +121,16 @@ MainComponent::MainComponent()
     volumeSlider.setRange (0.0, 127.0, 1.0);
     volumeSlider.setValue (100.0, juce::dontSendNotification);
     volumeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
-    volumeSlider.onValueChange = [this] { link.sendVolume ((int) volumeSlider.getValue()); };
+    volumeSlider.onValueChange = [this] { link.sendVolume ((int) volumeSlider.getValue(), ! volumeSlider.isMouseButtonDown()); };
+    volumeSlider.onDragEnd     = [this] { appendLog ("Volume " + juce::String ((int) volumeSlider.getValue())); };
     addAndMakeVisible (volumeSlider);
 
     reverbSlider.setRange (0.0, 127.0, 1.0);
     reverbSlider.setValue (40.0, juce::dontSendNotification);
     reverbSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, rowHeight - 4);
-    reverbSlider.onValueChange = [this] { link.sendReverb ((int) reverbSlider.getValue()); };
+    reverbSlider.onValueChange = [this] { link.sendReverb ((int) reverbSlider.getValue(), ! reverbSlider.isMouseButtonDown()); };
+    reverbSlider.onDragEnd     = [this] { appendLog ("Reverb " + juce::String ((int) reverbSlider.getValue())
+                                                     + " (analog mix out only, USB stems stay dry)"); };
     addAndMakeVisible (reverbSlider);
 
     lockWarning.setFont (juce::Font (juce::FontOptions (11.0f)));
