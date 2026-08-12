@@ -17,6 +17,10 @@ jobs:
       # iOS is built by hand in Xcode for this plugin, so the fourth leg is
       # pure cost here.
       ios: false
+      # Windows and Linux are otherwise only compiled here. pluginval is the
+      # one thing that actually loads them, runs audio through them, and opens
+      # the WebView editor.
+      pluginval: true
       # The SysEx probe is a diagnostic, not something anybody installs, and
       # building it doubled every leg.
       cmake-args: -DRND_BUILD_PROBE=OFF
