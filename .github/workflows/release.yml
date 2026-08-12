@@ -20,7 +20,11 @@ jobs:
     uses: Enkerli/enkerli-juce/.github/workflows/build-plugin.yml@main
     with:
       ios: false
-      cmake-args: -DRND_BUILD_PROBE=OFF -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
+      # The architecture list MUST stay quoted. cmake-args is substituted raw
+      # into a shell `run:`, so a bare semicolon would end the cmake command and
+      # try to execute `x86_64` -- yielding an arm64-only macOS build, which is
+      # useless on an Intel Mac and looks like success.
+      cmake-args: -DRND_BUILD_PROBE=OFF "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
 
   publish:
     needs: build
