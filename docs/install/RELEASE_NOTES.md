@@ -1,6 +1,18 @@
-**A work-in-progress prototype.** It is unsigned on every platform, and two of
-the three platform builds have never been launched by anybody. Please read the
-table before installing.
+**A work-in-progress prototype.** It is unsigned on every platform, and no
+human being has yet run the Windows or Linux builds. Please read the table
+before installing.
+
+## Changed since alpha.1
+
+- **The Linux zip now contains the standalone application.** It was built on
+  every CI run and collected on none of them: the artifact patterns were keyed
+  on file extensions and JUCE's Linux standalone has none. It is the one build
+  that reaches MIDI without a host in the way, so it is the first thing to try.
+- **The Linux build runs on older distributions.** Built on 24.04 it demanded
+  glibc 2.38, which excluded Ubuntu 22.04, Mint 21, Pop!_OS 22.04 and Debian 12
+  — and excluded them by refusing to load, which in a plugin host is
+  indistinguishable from the plugin not being installed. The floor is now 2.35.
+- Nothing changed in the application itself. Same code as alpha.1.
 
 ## What has actually been tested
 
