@@ -1,13 +1,22 @@
 # The suite's shared cross-platform build: macOS AU/VST3/CLAP, Windows
-# VST3/CLAP, Linux LV2/CLAP, Standalone everywhere, plus an unsigned iOS AUv3
-# compile. It checks out music-suite as a sibling because the WebUI source lives
-# there (apps/rnd-companion) and CMake bundles it with esbuild during the build.
+# VST3/CLAP, Linux LV2/VST3/CLAP, Standalone on each. It checks out music-suite
+# as a sibling because the WebUI source lives there (apps/rnd-companion) and
+# CMake bundles it with esbuild during the build.
 name: build
 on:
   push:
+    # A docs-only commit does not need three platforms rebuilt.
+    paths-ignore: ["**.md", "docs/**", ".gitignore", "LICENSE"]
   pull_request:
   workflow_dispatch:
 
 jobs:
   build:
     uses: Enkerli/enkerli-juce/.github/workflows/build-plugin.yml@main
+    with:
+      # iOS is built by hand in Xcode for this plugin, so the fourth leg is
+      # pure cost here.
+      ios: false
+      # The SysEx probe is a diagnostic, not something anybody installs, and
+      # building it doubled every leg.
+      cmake-args: -DRND_BUILD_PROBE=OFF
