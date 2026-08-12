@@ -1,5 +1,7 @@
 #include "CompanionModel.h"
 
+#include <algorithm>
+
 CompanionModel::CompanionModel()
 {
     deviceLink.onMessage = [this] (const rnd::Message& message) { handleMessage (message); };
@@ -97,6 +99,32 @@ void CompanionModel::sendVolume (int value, bool announce)
 
     if (announce)
         log ("Volume " + juce::String (value));
+}
+
+void CompanionModel::sendTrackVolume (int trackIndex, int value, bool announce)
+{
+    dispatch (rndcmd::trackVolume (trackIndex, value));
+
+    if (announce)
+        log ("Track " + juce::String (trackIndex + 1) + " volume " + juce::String (value));
+}
+
+void CompanionModel::applyTrackMutes (const std::vector<int>& mutedTracks, int trackCount)
+{
+    const int tracks = juce::jlimit (1, rnd::maxTracks, trackCount);
+
+    for (int track = 0; track < tracks; ++track)
+    {
+        const bool muted = std::find (mutedTracks.begin(), mutedTracks.end(), track) != mutedTracks.end();
+        dispatch (rndcmd::trackVolume (track, muted ? 0 : 127));
+    }
+
+    if (mutedTracks.empty())
+        log ("All tracks audible");
+    else if (static_cast<int> (mutedTracks.size()) == tracks - 1)
+        log ("Soloing one track");
+    else
+        log (juce::String (static_cast<int> (mutedTracks.size())) + " track(s) muted");
 }
 
 void CompanionModel::sendReverb (int value, bool announce)

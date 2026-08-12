@@ -50,6 +50,16 @@ static Commands mixCc (std::uint8_t controller, int value)
 }
 
 Commands volume (int value) { return mixCc (rnd::cc::volume, value); }
+
+Commands trackVolume (int trackIndex, int value)
+{
+    if (trackIndex < 0 || trackIndex >= rnd::maxTracks)
+        return {};
+
+    return { { juce::MidiMessage::controllerEvent (rnd::trackChannel (trackIndex),
+                                                   rnd::cc::volume,
+                                                   juce::jlimit (0, 127, value)), 0 } };
+}
 Commands reverb (int value) { return mixCc (rnd::cc::reverb, value); }
 
 }  // namespace rndcmd

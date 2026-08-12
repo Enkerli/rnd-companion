@@ -41,6 +41,10 @@ Commands tonic (int pitchClass, int pulseMs = 100);
 Commands volume (int value);
 Commands reverb (int value);
 
+/// One track's own volume, on its own channel. Muting is value 0; there is no
+/// separate mute message because the device does not need one.
+Commands trackVolume (int trackIndex, int value);
+
 /// Wraps a complete SysEx frame (F0…F7) as a JUCE message.
 juce::MidiMessage sysexFrom (const std::vector<std::uint8_t>& frame);
 

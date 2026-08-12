@@ -169,6 +169,29 @@ enkerli::BridgedWebView::EventMap CompanionEditor::makeEvents()
                 if (const auto seed = seedFrom (v))
                     model.library().setRating (*seed, ratingFromVar (v));
             } },
+        // ── Track audition ──────────────────────────────────────────────────
+        { "setTrackMutes", [this] (const juce::var& v)
+            {
+                std::vector<int> muted;
+                juce::Array<int> forLibrary;
+
+                if (const auto* array = v.getProperty ("muted", juce::var()).getArray())
+                    for (const auto& track : *array)
+                    {
+                        muted.push_back (static_cast<int> (track));
+                        forLibrary.add (static_cast<int> (track));
+                    }
+
+                model.applyTrackMutes (muted, intFrom (v, "trackCount", rnd::maxTracks));
+
+                // Remember it against the seed when the page names one, so the
+                // choice survives the next time you send this seed.
+                if (const auto seed = seedFrom (v))
+                    model.library().setMutedTracks (*seed, forLibrary);
+            } },
+        { "setTrackVolume", [this] (const juce::var& v)
+            { model.sendTrackVolume (intFrom (v, "track"), intFrom (v, "value", 127), false); } },
+
         { "setNote", [this] (const juce::var& v)
             {
                 if (const auto seed = seedFrom (v))

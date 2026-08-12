@@ -51,6 +51,11 @@ struct SeedEntry
     int           scaleIndex {};
     juce::String  engines;   ///< Comma-separated, in track order.
 
+    /// Track indices you chose to silence for this seed. A seed is often worth
+    /// keeping for one of its four voices; recording which ones you muted is
+    /// the difference between "I liked this" and "I liked THIS PART of this".
+    juce::Array<int> mutedTracks;
+
     juce::String  displayName() const;
     juce::String  summary() const;
 
@@ -75,6 +80,7 @@ public:
 
     void setRating (std::uint32_t seed, SeedEntry::Rating rating);
     void setNote   (std::uint32_t seed, const juce::String& note);
+    void setMutedTracks (std::uint32_t seed, const juce::Array<int>&);
     /// Returns what was removed, so the caller can offer an undo. Deleting a
     /// curated seed is the one destructive act in this app; it does not happen
     /// without a way back.

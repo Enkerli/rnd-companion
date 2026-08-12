@@ -138,6 +138,20 @@ namespace cc
 /// band (ch 2–5).  1-based, as MIDI channels are spoken about.
 inline constexpr std::array<int, 5> mixChannels { 1, 2, 3, 4, 5 };
 
+inline constexpr int masterChannel = 1;
+inline constexpr int maxTracks = 4;
+
+/// The channel carrying one track's own volume. Track indices are 0-based to
+/// match the device's 0x22 frames; the channels are 2-5.
+///
+/// This is what makes a track auditionable: the RND gives every track its own
+/// volume, so muting is CC7 = 0 on its channel and soloing is muting the rest.
+/// The capability was already in the protocol; it was simply never exposed.
+constexpr int trackChannel (int trackIndex)
+{
+    return 2 + trackIndex;
+}
+
 inline constexpr int numScales = 20;
 inline constexpr int numTonics = 12;
 

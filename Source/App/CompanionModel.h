@@ -61,6 +61,15 @@ public:
     void sendVolume (int value, bool announce);
     void sendReverb (int value, bool announce);
 
+    /// Per-track volume, 0 = muted. The RND gives every track its own volume,
+    /// which is what makes auditioning one track of a seed possible at all.
+    void sendTrackVolume (int trackIndex, int value, bool announce);
+
+    /// Applies a whole mute set at once: every track gets full volume except
+    /// the muted ones. Sent as a set rather than per toggle so the device never
+    /// sits in a half-applied state.
+    void applyTrackMutes (const std::vector<int>& mutedTracks, int trackCount);
+
     /// Opens the RND if nothing is open yet and one is present. This app is
     /// for one device, so making the user hunt for it in a dropdown is asking
     /// a question with only one answer. Never steals a port the person chose:

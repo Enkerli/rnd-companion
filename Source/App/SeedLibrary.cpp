@@ -179,7 +179,8 @@ bool SeedLibrary::sameContent (const SeedEntry& a, const SeedEntry& b)
         && a.tempoBpm == b.tempoBpm
         && a.tonic == b.tonic
         && a.scaleIndex == b.scaleIndex
-        && a.engines == b.engines;
+        && a.engines == b.engines
+        && a.mutedTracks == b.mutedTracks;
 }
 
 void SeedLibrary::setRating (std::uint32_t seed, SeedEntry::Rating rating)
@@ -199,6 +200,16 @@ void SeedLibrary::setNote (std::uint32_t seed, const juce::String& note)
         return;
 
     items[static_cast<std::size_t> (index)].note = note;
+    changed();
+}
+
+void SeedLibrary::setMutedTracks (std::uint32_t seed, const juce::Array<int>& muted)
+{
+    const int index = indexOf (seed);
+    if (index < 0)
+        return;
+
+    items[static_cast<std::size_t> (index)].mutedTracks = muted;
     changed();
 }
 
@@ -256,10 +267,22 @@ juce::var SeedLibrary::toVar() const
         if (entry.note.isNotEmpty())
             payload->setProperty ("note", entry.note);
 
+        if (! entry.mutedTracks.isEmpty())
+        {
+            juce::Array<juce::var> muted;
+            for (int track : entry.mutedTracks)
+                muted.add (track);
+
+            payload->setProperty ("mutedTracks", muted);
+        }
+
         auto* facets = new juce::DynamicObject();
         facets->setProperty ("seedValue", static_cast<juce::int64> (entry.seed));
         facets->setProperty ("rating", ratingToString (entry.rating));
         facets->setProperty ("hasStatus", entry.hasStatus);
+        facets->setProperty ("mutedTrackCount", entry.mutedTracks.size());
+        // Searchable: "which seeds did I keep only one voice of?"
+        facets->setProperty ("partial", ! entry.mutedTracks.isEmpty());
 
         juce::StringArray tags;
         tags.add (ratingToString (entry.rating));
@@ -360,6 +383,10 @@ bool SeedLibrary::readEnvelopeItem (const juce::var& value, SeedEntry& entry)
     entry.note    = payload->getProperty ("note").toString();
     entry.id      = object->getProperty ("id").toString();
     entry.savedAt = object->getProperty ("savedAt").toString();
+
+    if (const auto* muted = payload->getProperty ("mutedTracks").getArray())
+        for (const auto& track : *muted)
+            entry.mutedTracks.add (static_cast<int> (track));
 
     // Sort order still uses a millisecond stamp; derive it from savedAt so an
     // imported library keeps its ordering.
