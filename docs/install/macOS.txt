@@ -1,0 +1,25 @@
+RND Companion — macOS (universal: Apple silicon + Intel)
+========================================================
+
+Copy each into the matching folder, creating it if it does not exist:
+
+  RND Companion.component  ->  ~/Library/Audio/Plug-Ins/Components/
+  RND Companion.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
+  RND Companion.clap       ->  ~/Library/Audio/Plug-Ins/CLAP/
+  RND Companion.app        ->  /Applications/   (or wherever you like)
+
+NOT SIGNED OR NOTARISED. macOS will refuse them on first run until you allow
+them. That is Gatekeeper working, not a fault in the build:
+
+  right-click the .app and choose Open, and for the plugins either
+
+      xattr -dr com.apple.quarantine "RND Companion.component"
+
+  or approve them in System Settings > Privacy & Security after the first
+  attempt.
+
+Connect the RND over USB before opening. It is found and opened automatically;
+you do not have to pick it from a list.
+
+The AU is a MIDI effect (aumi), so in Logic it goes in the MIDI FX slot of a
+software instrument track rather than the instrument slot.

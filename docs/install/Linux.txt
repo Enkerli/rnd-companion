@@ -1,0 +1,16 @@
+RND Companion — Linux (x86_64)
+==============================
+
+  RND Companion.vst3  ->  ~/.vst3/
+  RND Companion.clap  ->  ~/.clap/
+  RND Companion.lv2   ->  ~/.lv2/
+
+Built on Ubuntu; needs GTK3 and WebKitGTK 4.1 at runtime, because the UI is a
+WebView:
+
+  sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0
+
+On Patchbox OS / MODEP the LV2 is the one to use. Ardour, Qtractor and Reaper
+load the VST3; Bitwig the CLAP.
+
+Connect the RND over USB before opening; it is found and opened automatically.

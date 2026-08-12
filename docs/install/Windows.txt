@@ -1,0 +1,13 @@
+RND Companion — Windows
+=======================
+
+  RND Companion.vst3  ->  C:\Program Files\Common Files\VST3\
+  RND Companion.clap  ->  C:\Program Files\Common Files\CLAP\
+  RND Companion.exe   ->  anywhere you like
+
+Unsigned, so SmartScreen will warn on first run: More info > Run anyway.
+
+Connect the RND over USB before opening; it is found and opened automatically.
+The UI is a WebView and uses Microsoft Edge WebView2, which ships with Windows
+11 and current Windows 10. If the plugin window is blank, install the WebView2
+runtime from Microsoft.
