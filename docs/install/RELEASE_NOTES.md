@@ -10,12 +10,24 @@ Compiled is not the same as works, so this says which is which.
 |---|---|---|---|
 | macOS (AU · VST3 · CLAP · Standalone) | yes | yes — `auval` | yes — a Cymaforma RND over USB |
 | iPadOS (AUv3) | yes | — | yes — in AUM |
-| Windows (VST3 · CLAP · Standalone) | yes, in CI | **no** | **no** |
-| Linux (LV2 · VST3 · CLAP) | yes, in CI | **no** | **no** |
+| Windows (VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | **no** |
+| Linux (LV2 · VST3 · CLAP) | yes, in CI | VST3 — `pluginval` 8 | **no** |
 
-The Windows and Linux binaries have been built and nothing more. No host has
-opened them, no plugin validator has seen them, and no RND has been on the other
-end. Treat a first run as an experiment.
+On Windows and Linux, `pluginval --strictness-level 8` loads the VST3,
+instantiates it, runs audio through it, and — this is the part that matters for
+a WebView UI — opens the editor, opens it *while processing*, and automates it.
+All of that passes. So the plugin does load and its window does come up under
+WebView2 and WebKitGTK.
+
+What that still does not cover:
+
+- **The CLAP and LV2 builds are unvalidated.** pluginval speaks neither. They
+  are compiled and nothing more.
+- **No RND has ever been on the other end** of a Windows or Linux build. MIDI
+  in a CI container is not MIDI on your desk; the CI log even shows ALSA
+  finding no sequencer device, which is expected there and would be a problem
+  on real hardware.
+- **No human has used it** on either platform.
 
 ## Nothing is signed
 
