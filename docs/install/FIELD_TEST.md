@@ -16,6 +16,47 @@ nothing else. Note anything that differs between them.
 
 ---
 
+## Where this stands
+
+**Linux — 2026-08-12, Ubuntu 26.04 (glibc 2.43, WebKitGTK 2.52.3), plugin and
+standalone, against real hardware.**
+
+Working: the WebView renders; auto-connect finds the device unaided (it enumerates
+as `RND Synth MIDI 1`, so the `RND` substring match holds on ALSA exactly as it
+does on CoreMIDI); reading the device; sending a seed; mute and solo; changing
+the scale.
+
+Two things came out of it that are not bugs in the plugin but do change how it
+should be used, both written up under "Linux gotchas" below: the `Both`
+transport can feed a MIDI loop, and the hardware port is exclusive.
+
+Still open everywhere: export and import through the native file dialogs, the
+library surviving a restart, and the CLAP and LV2 builds specifically. Windows
+is entirely untested.
+
+## Linux gotchas
+
+**`Both` can loop.** It sends every command down the direct port *and* into the
+host stream. If the host stream also reaches the same device — easy to arrange
+with virtual ports, and easy to arrange by accident — the device receives each
+command twice, and a note-on/note-off pair like the tonic pulse can double up.
+Inbound RND SysEx is swallowed rather than forwarded, so a runaway is guarded
+against, but nothing dedupes the outbound side. **Use `Direct MIDI port` unless
+you have a specific reason not to, and know your host's routing before choosing
+`Both`.**
+
+**The hardware port is exclusive.** Whoever opens the RND first keeps it: the
+standalone and the plugin cannot both hold it, and a DAW that has grabbed it
+locks the companion out entirely ("busy"). This is not a Linux quirk to route
+around so much as the reason the host transport exists at all — when the DAW
+owns the port, `Host MIDI stream` is the way in. A virtual port or PipeWire
+graph is the other way, and on a machine with ten virtual ports already
+enumerated that is likely the more comfortable one.
+
+Expect the same on Windows, where WinMM is exclusive too.
+
+---
+
 ## 0. Before anything else: will the Linux binary even start?
 
 **Run this first.** It takes two seconds and can save you an evening.
@@ -81,9 +122,9 @@ normally carries, and the SysEx input buffering differs on every platform —
 WinMM hands back long messages through a fixed pool of headers, ALSA through
 its own. If frames are being dropped or truncated we will see it here first.
 
-- [ ] Seed appears, and matches what the device shows
-- [ ] Tempo, root and scale populate
-- [ ] Engine names populate (all four tracks, not blank)
+- [x] Seed appears, and matches what the device shows
+- [x] Tempo, root and scale populate
+- [ ] Engine names populate (all four tracks, not blank) — unconfirmed on Linux
 - [ ] **The log stays quiet.** Any `Damaged RND frame from host` line is a real
       finding — copy the hex out, it tells us where the frame was cut.
 
@@ -91,7 +132,7 @@ its own. If frames are being dropped or truncated we will see it here first.
 
 The core function of the whole application.
 
-- [ ] Type a seed you know, send it, confirm the RND lands on it
+- [x] Type a seed you know, send it, confirm the RND lands on it
 - [ ] Capture a seed, confirm it enters the library
 - [ ] Send one back from the library
 
@@ -100,15 +141,15 @@ The core function of the whole application.
 Per-track volume on channels 2–5, which is what makes hearing one track of a
 seed possible at all.
 
-- [ ] Mute one track — that track alone goes silent
-- [ ] Solo one track — the other three go silent
+- [x] Mute one track — that track alone goes silent
+- [x] Solo one track — the other three go silent
 - [ ] Unmute everything — all four come back
 
 ## 5. The UI itself
 
 `pluginval` proved the editor opens. Nobody has ever looked at it.
 
-- [ ] It paints, rather than showing a blank or white rectangle
+- [x] It paints, rather than showing a blank or white rectangle
 - [ ] Fonts and spacing are sane; nothing overlaps or is clipped
 - [ ] The MIDI popover opens and stays open (it closed itself on iPad once)
 - [ ] Resizing behaves
@@ -139,9 +180,8 @@ operating systems directly.
 
 **Linux**
 
-- [ ] Standalone `RND Companion` — the cleanest test, no host involved. Mark it
-      executable first if the zip lost the bit: `chmod +x "RND Companion"`
-- [ ] Reaper — VST3, direct transport
+- [x] Standalone `RND Companion` — the cleanest test, no host involved
+- [x] A plugin build, direct transport
 - [ ] Reaper — CLAP (no validator has ever seen this format)
 - [ ] Ardour — LV2 (likewise, and Ardour is the best LV2 host to try it in)
 - [ ] Bitwig — VST3 and CLAP

@@ -18,8 +18,15 @@ The UI is a WebView, so GTK3 and WebKitGTK are a real runtime dependency:
 
   sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0
 
-(4.0 works too if that is what your release carries.) A plugin window that
-opens but stays blank is nearly always this.
+A plugin window that opens but stays blank is nearly always this. Two notes:
+apt may redirect libgtk-3-0 to libgtk-3-0t64, which is correct and expected;
+and WebKitGTK 4.0 no longer exists on 25.04 and later, so 4.1 is the only
+option there. Confirmed working on Ubuntu 26.04 with WebKitGTK 2.52.3.
+
+The RND's MIDI port is exclusive: whoever opens it first keeps it. If the
+companion reports the device busy, something else already has it -- often a
+DAW. Either close that, switch the route to "Host MIDI stream" and let the DAW
+carry the traffic, or share the device through a virtual port.
 
 On Patchbox OS / MODEP the LV2 is the one to use. Ardour, Qtractor and Reaper
 load the VST3; Bitwig the CLAP.
