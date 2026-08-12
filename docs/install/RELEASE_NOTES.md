@@ -11,7 +11,7 @@ Compiled is not the same as works, so this says which is which.
 | macOS (AU · VST3 · CLAP · Standalone) | yes | yes — `auval` | yes — a Cymaforma RND over USB |
 | iPadOS (AUv3) | yes | — | yes — in AUM |
 | Windows (VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | **no** |
-| Linux (LV2 · VST3 · CLAP) | yes, in CI | VST3 — `pluginval` 8 | **no** |
+| Linux (LV2 · VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | **no** |
 
 On Windows and Linux, `pluginval --strictness-level 8` loads the VST3,
 instantiates it, runs audio through it, and — this is the part that matters for
@@ -43,7 +43,8 @@ Every platform will object on first launch, and each is right to:
 The UI is a WebView, which is a real runtime dependency on two platforms:
 
 - **Linux** needs GTK3 and WebKitGTK 4.1 — `sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0`.
-  A blank plugin window almost certainly means these are missing.
+  A blank plugin window almost certainly means these are missing. It also needs
+  **glibc 2.35 or newer**: Ubuntu 22.04 and up, Debian 12, Mint 21, Fedora 36.
 - **Windows** needs the Edge WebView2 runtime, which ships with Windows 11 and
   current Windows 10. If the window is blank, install it from Microsoft.
 

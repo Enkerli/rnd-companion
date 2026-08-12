@@ -24,20 +24,17 @@ nothing else. Note anything that differs between them.
 ldd --version | head -1
 ```
 
-The shipped Linux build needs **glibc 2.38 or newer**. It is built on
-`ubuntu-latest` (24.04, glibc 2.39) and picked up `__isoc23_*` symbols that do
-not exist in older releases.
+The Linux build needs **glibc 2.35 or newer**, which covers Ubuntu 22.04 and
+anything more recent, Debian 12, Mint 21 and Fedora 36 up.
 
-| Distro | glibc | Shipped build runs? |
-|---|---|---|
-| Ubuntu 24.04+, Mint 22, Fedora 39+, Debian 13 | ≥ 2.38 | yes |
-| Ubuntu 22.04, Pop!_OS 22.04, Mint 21, Debian 12 | 2.35–2.36 | **no** |
+It briefly needed 2.38: built on `ubuntu-latest` (24.04) it picked up
+`__isoc23_*` symbols that Ubuntu 22.04, Mint 21, Pop!_OS 22.04 and Debian 12 do
+not have. The Linux CI leg is now pinned to 22.04, so unless your machine is
+older than that this should simply pass.
 
-If yours is below 2.38 you will get `version 'GLIBC_2.38' not found` (or a host
-that silently refuses to scan the plugin, which is the same thing wearing a
-disguise). Stop and say so — the fix is on our end, either moving the Linux CI
-leg to an older runner or building on your machine. Do not spend time debugging
-it as if it were a plugin bug.
+If it does report `version 'GLIBC_2.xx' not found` — or if a host silently
+refuses to scan the plugin, which is the same failure wearing a disguise — stop
+and say so. The fix is on our end, not yours; do not debug it as a plugin bug.
 
 Then check the WebView runtime, which is a genuine dependency and not optional:
 
@@ -142,6 +139,8 @@ operating systems directly.
 
 **Linux**
 
+- [ ] Standalone `RND Companion` — the cleanest test, no host involved. Mark it
+      executable first if the zip lost the bit: `chmod +x "RND Companion"`
 - [ ] Reaper — VST3, direct transport
 - [ ] Reaper — CLAP (no validator has ever seen this format)
 - [ ] Ardour — LV2 (likewise, and Ardour is the best LV2 host to try it in)

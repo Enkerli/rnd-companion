@@ -4,11 +4,22 @@ RND Companion — Linux (x86_64)
   RND Companion.vst3  ->  ~/.vst3/
   RND Companion.clap  ->  ~/.clap/
   RND Companion.lv2   ->  ~/.lv2/
+  RND Companion       ->  run it from anywhere; no host needed
 
-Built on Ubuntu; needs GTK3 and WebKitGTK 4.1 at runtime, because the UI is a
-WebView:
+The plain "RND Companion" is the standalone application. It owns the MIDI port
+itself, so it is the quickest way to find out whether the device is talking to
+you at all, with no host routing in between. If the executable bit did not
+survive the download: chmod +x "RND Companion"
+
+Built on Ubuntu 22.04, so it needs glibc 2.35 or newer -- 22.04 and up, Debian
+12, Mint 21, Fedora 36. Older than that and it will refuse to load.
+
+The UI is a WebView, so GTK3 and WebKitGTK are a real runtime dependency:
 
   sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0
+
+(4.0 works too if that is what your release carries.) A plugin window that
+opens but stays blank is nearly always this.
 
 On Patchbox OS / MODEP the LV2 is the one to use. Ardour, Qtractor and Reaper
 load the VST3; Bitwig the CLAP.
