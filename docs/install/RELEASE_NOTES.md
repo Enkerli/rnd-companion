@@ -12,6 +12,11 @@ before installing.
   glibc 2.38, which excluded Ubuntu 22.04, Mint 21, Pop!_OS 22.04 and Debian 12
   — and excluded them by refusing to load, which in a plugin host is
   indistinguishable from the plugin not being installed. The floor is now 2.35.
+- **Everything in the zips is executable again.** Every binary in every alpha.1
+  zip shipped without its executable bit, because the CI step that collects the
+  builds does not preserve file modes. On macOS this is fatal and silent: the
+  `.app` refuses to open at all. It escaped notice because macOS was always
+  tested from a local build and never from the published zip.
 - Nothing changed in the application itself. Same code as alpha.1.
 
 ## What has actually been tested

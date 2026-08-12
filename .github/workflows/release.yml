@@ -61,6 +61,23 @@ jobs:
               [ -d "$src/$fmt" ] && cp -R "$src/$fmt/"* "$out/" || true
             done
             cp "docs/install/$name.txt" "$out/INSTALL.txt" 2>/dev/null || true
+
+            # actions/download-artifact does not preserve file modes: everything
+            # arrives here 0644, so every binary we ship was going out without
+            # its executable bit. On macOS that is fatal and silent -- a .app
+            # whose Contents/MacOS binary is not executable simply refuses to
+            # open, and alpha.1 shipped that way. It went unnoticed because
+            # macOS was always tested from a local build, never from the zip.
+            #
+            # Ask the file itself rather than matching names: the Linux
+            # standalone has no extension, and the macOS binaries are buried
+            # inside bundles.
+            find "$out" -type f -print0 | while IFS= read -r -d '' f; do
+              case "$(file -b "$f")" in
+                Mach-O*|ELF*) chmod +x "$f" ;;
+              esac
+            done
+
             (cd dist && zip -qr "RND-Companion-$VER-$name.zip" "RND-Companion-$VER-$name")
             rm -rf "$out"
           }
@@ -79,7 +96,19 @@ jobs:
           TAG="${{ inputs.tag || github.ref_name }}"
           # --prerelease is the load-bearing flag: GitHub badges it, `gh release
           # list` marks it, and updaters skip it.
-          gh release create "$TAG" dist/*.zip dist/SHA256SUMS.txt \
-            --title "RND Companion $TAG" \
-            --prerelease \
-            --notes-file docs/install/RELEASE_NOTES.md
+          # Idempotent: re-running a release for an existing tag replaces its
+          # assets instead of failing outright. Without this, repairing a bad
+          # release means deleting it first, and a half-deleted release is a
+          # worse thing to leave lying around than a repaired one.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip dist/SHA256SUMS.txt --clobber
+            gh release edit "$TAG" \
+              --title "RND Companion $TAG" \
+              --prerelease \
+              --notes-file docs/install/RELEASE_NOTES.md
+          else
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS.txt \
+              --title "RND Companion $TAG" \
+              --prerelease \
+              --notes-file docs/install/RELEASE_NOTES.md
+          fi
