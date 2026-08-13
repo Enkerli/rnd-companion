@@ -188,10 +188,19 @@ operating systems directly.
       `https://enkerli.com/plugins/RND_Companion`, so the bundle is installed
       where lilv looks and its TTL parses. That is the half of the risk that
       costs nothing to check.
-- [ ] LV2 **loads and runs** — still the one format no tool or host has ever
-      opened. `jalv.gtk https://enkerli.com/plugins/RND_Companion` is the
-      lightest way in; Carla is the other. Watch for a blank window, since the
-      LV2 UI is a separate `ui.ttl` entry point and nothing has exercised it.
+- [x] LV2 **instantiates**: console `jalv` loads it and reports its ports, JACK
+      name and buffer sizes. The DSP half of the format is sound.
+- [ ] LV2 **shows its UI** — `jalv.gtk3` (the frontends are named by toolkit
+      version on current Debian and Ubuntu; plain `jalv.gtk` does not exist).
+      A blank window here, given the CLAP renders fine, points at the separate
+      `ui.ttl` entry point rather than at WebKitGTK.
+- [ ] LV2 **headless** — the MODEP question, and the one with consequences.
+      Instantiating under console `jalv` still printed Xlib's "Authorization
+      required", so the plugin reaches for a display in a host that asked for no
+      UI at all. X11 is dlopened rather than linked, so it ought to degrade
+      rather than fail — but ought-to is not a test:
+      `DISPLAY= jalv https://enkerli.com/plugins/RND_Companion` answers it
+      without having to find a Pi.
 
 **Windows** — needs a reboot into it. Wine is not a substitute: it would test
 Wine's VST3 shim and its WebView2 story rather than Windows, so a pass would
