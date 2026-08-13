@@ -182,11 +182,17 @@ operating systems directly.
 
 - [x] Standalone `RND Companion` — the cleanest test, no host involved
 - [x] A plugin build, direct transport
-- [ ] Reaper — CLAP (no validator has ever seen this format)
-- [ ] Ardour — LV2 (likewise, and Ardour is the best LV2 host to try it in)
-- [ ] Bitwig — VST3 and CLAP
+- [x] Bitwig Studio — CLAP (2026-08-12; no validator has ever seen this format,
+      so this is the only evidence CLAP works anywhere but macOS)
+- [ ] LV2 — the last format nothing has ever loaded. Ardour is the natural host
+      but a heavy install for one check; `jalv` is a few megabytes and enough:
+      `sudo apt install jalv lilv-utils`, then `lv2ls | grep -i rnd` to confirm
+      the bundle is even discoverable, and `jalv.gtk <the-uri>` to open it.
+      Carla is the other light option.
 
-**Windows**
+**Windows** — needs a reboot into it. Wine is not a substitute: it would test
+Wine's VST3 shim and its WebView2 story rather than Windows, so a pass would
+mean little and a failure even less.
 
 - [ ] Standalone `RND Companion.exe` — the cleanest test, no host involved
 - [ ] Reaper — VST3, direct transport

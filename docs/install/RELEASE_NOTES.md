@@ -1,6 +1,26 @@
-**A work-in-progress prototype.** It is unsigned on every platform, and no
-human being has yet run the Windows or Linux builds. Please read the table
-before installing.
+**A work-in-progress prototype.** It is unsigned on every platform, and nobody
+has ever run the Windows build. Please read the table before installing.
+
+## Changed since alpha.2
+
+Linux was used against real hardware for the first time, and the four things it
+turned up were all in the diagnostics rather than the protocol:
+
+- **The build badge told the truth about the wrong thing.** The header chip fell
+  back to the WebUI bundle's timestamp, because the native half waited on an
+  event no editor sends — a stamp describing the bundle, in the one place you
+  look to learn which binary you are running.
+- **And the other badge cried stale on geography.** The binary's stamp was
+  rendered in local time and compared against a bundle stamp written in UTC, so
+  west of Greenwich a current binary looked hours old and raised the warning
+  that badge exists to prevent. Both halves are UTC now.
+- **A device another host had taken still read as connected.** MIDI ports are
+  exclusive on ALSA and WinMM: a DAW holding the RND removes it from the
+  enumeration, and the panel went on reporting `Connected · SysEx` over an empty
+  picker. It now checks the selected port is actually present.
+- **The standalone stopped calling itself a plugin** in its own window.
+
+Nothing in the protocol changed.
 
 ## Changed since alpha.1
 
@@ -28,7 +48,7 @@ Compiled is not the same as works, so this says which is which.
 | macOS (AU · VST3 · CLAP · Standalone) | yes | yes — `auval` | yes — a Cymaforma RND over USB |
 | iPadOS (AUv3) | yes | — | yes — in AUM |
 | Windows (VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | **no** |
-| Linux (LV2 · VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | **no** |
+| Linux (LV2 · VST3 · CLAP · Standalone) | yes, in CI | VST3 — `pluginval` 8 | yes — standalone and CLAP, Ubuntu 26.04 |
 
 On Windows and Linux, `pluginval --strictness-level 8` loads the VST3,
 instantiates it, runs audio through it, and — this is the part that matters for
@@ -36,15 +56,28 @@ a WebView UI — opens the editor, opens it *while processing*, and automates it
 All of that passes. So the plugin does load and its window does come up under
 WebView2 and WebKitGTK.
 
+On Linux that has now been backed up by hand, on Ubuntu 26.04 with a Cymaforma
+RND over USB: the standalone and the CLAP in Bitwig Studio both read the device,
+send seeds, mute and solo tracks and change the scale, and the device is found
+and opened without being chosen from a list.
+
 What that still does not cover:
 
-- **The CLAP and LV2 builds are unvalidated.** pluginval speaks neither. They
-  are compiled and nothing more.
-- **No RND has ever been on the other end** of a Windows or Linux build. MIDI
-  in a CI container is not MIDI on your desk; the CI log even shows ALSA
-  finding no sequencer device, which is expected there and would be a problem
-  on real hardware.
-- **No human has used it** on either platform.
+- **The LV2 build is unvalidated.** pluginval does not speak LV2 and no host has
+  loaded it. It is compiled and nothing more.
+- **Windows is entirely untested by hand.** No RND has been on the other end of
+  it. MIDI in a CI container is not MIDI on your desk — the CI log shows ALSA
+  finding no sequencer device at all.
+
+Two things worth knowing before you plug anything in, neither of them bugs:
+
+- **The hardware MIDI port is exclusive** on Linux and Windows alike. Whoever
+  opens the RND first keeps it, and a DAW holding it locks the companion out
+  entirely. That is what the `Host MIDI stream` route is for; a virtual port or
+  a PipeWire graph is the other answer.
+- **The `Both` route can double up.** It sends every command down the direct
+  port *and* into the host stream, so if the host stream also reaches the device
+  it arrives twice. `Direct MIDI port` is the default for a reason.
 
 ## Nothing is signed
 
