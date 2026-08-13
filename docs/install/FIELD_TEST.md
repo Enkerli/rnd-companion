@@ -23,16 +23,19 @@ standalone, against real hardware.**
 
 Working: the WebView renders; auto-connect finds the device unaided (it enumerates
 as `RND Synth MIDI 1`, so the `RND` substring match holds on ALSA exactly as it
-does on CoreMIDI); reading the device; sending a seed; mute and solo; changing
-the scale.
+does on CoreMIDI); reading the device, engine names and all; sending a seed;
+mute and solo; changing the scale; export and import through the native dialogs.
+
+**All four formats now run on Linux** — standalone, VST3, CLAP (Bitwig) and LV2
+(Carla). Since `pluginval` speaks neither CLAP nor LV2, those two sessions are
+the only evidence either format works anywhere but macOS.
 
 Two things came out of it that are not bugs in the plugin but do change how it
 should be used, both written up under "Linux gotchas" below: the `Both`
 transport can feed a MIDI loop, and the hardware port is exclusive.
 
-Still open everywhere: export and import through the native file dialogs, the
-library surviving a restart, and the CLAP and LV2 builds specifically. Windows
-is entirely untested.
+Still open: the library surviving a restart, LV2 with no display at all (the
+MODEP question), and Windows, which is entirely untested.
 
 ## Linux gotchas
 
@@ -124,7 +127,7 @@ its own. If frames are being dropped or truncated we will see it here first.
 
 - [x] Seed appears, and matches what the device shows
 - [x] Tempo, root and scale populate
-- [ ] Engine names populate (all four tracks, not blank) — unconfirmed on Linux
+- [x] Engine names populate — Speech, Subtractive, Plucked String, FM, all four
 - [ ] **The log stays quiet.** Any `Damaged RND frame from host` line is a real
       finding — copy the hex out, it tells us where the frame was cut.
 
