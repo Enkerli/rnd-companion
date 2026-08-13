@@ -28,7 +28,13 @@ companion reports the device busy, something else already has it -- often a
 DAW. Either close that, switch the route to "Host MIDI stream" and let the DAW
 carry the traffic, or share the device through a virtual port.
 
-On Patchbox OS / MODEP the LV2 is the one to use. Ardour, Qtractor and Reaper
-load the VST3; Bitwig the CLAP.
+Ardour, Qtractor and Reaper load the VST3; Bitwig the CLAP -- the CLAP is
+tested on Linux, the LV2 is not.
+
+On Patchbox OS / MODEP the LV2 is the one to use, with a caveat: that target is
+headless, and this plugin reaches for an X display when it is instantiated even
+in a console host. X11 is loaded at runtime rather than linked, so a missing
+display looks survivable, but nobody has run it on a machine that has none. If
+you are the first, say what happens.
 
 Connect the RND over USB before opening; it is found and opened automatically.
