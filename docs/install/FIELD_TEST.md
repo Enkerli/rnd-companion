@@ -184,11 +184,14 @@ operating systems directly.
 - [x] A plugin build, direct transport
 - [x] Bitwig Studio — CLAP (2026-08-12; no validator has ever seen this format,
       so this is the only evidence CLAP works anywhere but macOS)
-- [ ] LV2 — the last format nothing has ever loaded. Ardour is the natural host
-      but a heavy install for one check; `jalv` is a few megabytes and enough:
-      `sudo apt install jalv lilv-utils`, then `lv2ls | grep -i rnd` to confirm
-      the bundle is even discoverable, and `jalv.gtk <the-uri>` to open it.
-      Carla is the other light option.
+- [x] LV2 is **discoverable**: `lv2ls` lists
+      `https://enkerli.com/plugins/RND_Companion`, so the bundle is installed
+      where lilv looks and its TTL parses. That is the half of the risk that
+      costs nothing to check.
+- [ ] LV2 **loads and runs** — still the one format no tool or host has ever
+      opened. `jalv.gtk https://enkerli.com/plugins/RND_Companion` is the
+      lightest way in; Carla is the other. Watch for a blank window, since the
+      LV2 UI is a separate `ui.ttl` entry point and nothing has exercised it.
 
 **Windows** — needs a reboot into it. Wine is not a substitute: it would test
 Wine's VST3 shim and its WebView2 story rather than Windows, so a pass would
