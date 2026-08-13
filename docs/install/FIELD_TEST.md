@@ -158,8 +158,14 @@ seed possible at all.
 ## 6. The library on disk
 
 - [ ] Ratings, notes and mutes survive quitting and reopening
-- [ ] Export writes a file — the native save dialog appears and works
-- [ ] Import reads it back
+- [x] Export writes a file — the native save dialog appears and works
+- [x] Import reads it back
+- Known wart on Linux: the suggested filename reaches the dialog **title** but
+  not its Name field. The cause is upstream — JUCE's Linux chooser hands the
+  full path to kdialog only when that file already exists, and a file being
+  saved for the first time does not, so it passes the parent directory instead
+  and the name is dropped. If the target directory did *not* exist the name
+  would survive, which is the joke. The zenity backend keeps it.
 - [ ] **Cross-platform:** copy a library exported on the Mac onto this machine
       and import it. Same envelope, so it should simply load; if it does not,
       that is a bug worth knowing about.
@@ -190,17 +196,22 @@ operating systems directly.
       costs nothing to check.
 - [x] LV2 **instantiates**: console `jalv` loads it and reports its ports, JACK
       name and buffer sizes. The DSP half of the format is sound.
-- [ ] LV2 **shows its UI** — `jalv.gtk3` (the frontends are named by toolkit
-      version on current Debian and Ubuntu; plain `jalv.gtk` does not exist).
-      A blank window here, given the CLAP renders fine, points at the separate
-      `ui.ttl` entry point rather than at WebKitGTK.
+- [x] LV2 **shows its UI** — confirmed in Carla: full UI, device connected,
+      both build stamps agreeing. That closes the last format nothing had ever
+      opened.
+      `jalv.gtk3` is not evidence against it. It embeds plugin UIs through
+      GtkPlug/GtkSocket, which is X11-only, and says exactly that
+      ("GtkPlug only works under X11") immediately before segfaulting under
+      Wayland — it cannot host *any* external UI there. Use Carla.
 - [ ] LV2 **headless** — the MODEP question, and the one with consequences.
       Instantiating under console `jalv` still printed Xlib's "Authorization
       required", so the plugin reaches for a display in a host that asked for no
       UI at all. X11 is dlopened rather than linked, so it ought to degrade
       rather than fail — but ought-to is not a test:
       `DISPLAY= jalv https://enkerli.com/plugins/RND_Companion` answers it
-      without having to find a Pi.
+      without having to find a Pi. Not yet run: the attempt so far carried a
+      trailing `~`, which made it a different URI, so what failed was loading
+      state for a plugin that does not exist.
 
 **Windows** — needs a reboot into it. Wine is not a substitute: it would test
 Wine's VST3 shim and its WebView2 story rather than Windows, so a pass would
